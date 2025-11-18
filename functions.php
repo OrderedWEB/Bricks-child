@@ -1,4 +1,3 @@
-
 <?php
 /**
  * Engagement Letter System Functions - Fixed Theme Path Version
@@ -17,6 +16,7 @@ if (!defined('ABSPATH')) exit;
 /**
  * Start session on WordPress init hook - runs before any output
  */
+
 function el_init_session() {
     // Only start session if not already started
     if (!session_id() && !headers_sent()) {
@@ -103,7 +103,33 @@ add_action('wp_logout', function() {
     }
 });
 
+/**
+ * ================================================================
+ * ENQUEUE SCRIPTS & STYLES
+ * ================================================================
+ */
+add_action('wp_enqueue_scripts', 'el_print_editor_enqueue_scripts');
 
+function el_print_editor_enqueue_scripts() {
+    global $post;
+    if (is_a($post, 'WP_Post') && has_shortcode($post->post_content, 'el_print_editor')) {
+        
+        wp_enqueue_script(
+            'el-print-editor-enhanced',
+            get_stylesheet_directory_uri() . '/js/el-print-editor-enhanced.js',
+            array('jquery'),
+            '1.0.1',
+            true
+        );
+        
+        wp_localize_script('el-print-editor-enhanced', 'el_print_config', array(
+            'ajax_url' => admin_url('admin-ajax.php'),
+            'nonce' => wp_create_nonce('el_nonce'),
+            'can_edit' => current_user_can('edit_posts') ? '1' : '0',
+            'paper_only_default' => '0'
+        ));
+    }
+}
 /**
  * =================================================================
  * ENHANCED PRINT EDITOR INTEGRATION
@@ -239,6 +265,7 @@ add_action('wp_footer', function() {
         <?php
     }
 });
+
 
 /**
  * =================================================================
@@ -5387,7 +5414,8 @@ function el_resume_banner_shortcode() {
                             1: '#brxe-kjwfkc', // Tab 1
                             2: '#brxe-caqeqv', // Tab 2
                             3: '#brxe-mhedar', // Tab 3
-                            4: '#brxe-tab4',   // Tab 4 - update with actual ID
+                            4: '#brxe-ihqhkg',   // Tab 4 
+                            5: '#brxe-zmmopw',   // Tab 5
                         };
                         
                         var $tab = $(tabMap[currentTab]);
@@ -6477,431 +6505,310 @@ function el_generate_and_attach_pdf($html, $el_id, $reference) {
 }
 
 /**
- * Shortcode: [el_print_editor]
- * Display print-ready editor for final document edits
+ * ================================================================
+ * SHORTCODE: [el_print_editor]
+ * ================================================================
  */
-add_shortcode('el_print_editor', 'el_print_editor_shortcode');
+add_shortcode('el_print_editor', 'el_render_print_editor_shortcode');
 
-function el_print_editor_shortcode() {
-    // Check if current user can edit
-    $current_user = wp_get_current_user();
-    $can_edit = false;
-    
-    if ($current_user->ID) {
-        $can_edit = get_user_meta($current_user->ID, 'el_can_edit_documents', true);
-    }
+function el_render_print_editor_shortcode($atts) {
+    $can_edit = current_user_can('edit_posts');
     
     ob_start();
     ?>
-    <div id="el-print-editor-wrapper" class="el-editor-container">
-        <div class="el-editor-toolbar">
-            <button type="button" id="el-load-print-content" class="el-btn el-btn-primary">
-                <span class="dashicons dashicons-download"></span> Load Document
+    
+    <div id="el-print-editor-wrapper" class="el-print-editor-wrapper">
+        
+        <!-- Page Info Bar -->
+        <div class="el-page-info-bar" style="display: none; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
+            <div class="el-page-stats" style="display: flex; gap: 20px; flex-wrap: wrap;">
+                <span style="font-size: 14px;">📄 Pages: <strong id="el-total-pages">0</strong></span>
+                <span style="font-size: 14px;">📋 Mode: <strong id="el-print-mode">Digital</strong></span>
+                <span id="el-signature-indicator" style="display: none; font-size: 14px;">✍️ Page signatures enabled</span>
+            </div>
+        </div>
+        
+        <!-- Load Document Section -->
+        <div id="el-load-document-section" style="background: #f9fafb; border: 2px dashed #cbd5e1; border-radius: 8px; padding: 40px; text-align: center; margin-bottom: 20px;">
+            <h3 style="margin: 0 0 10px 0; color: #1e293b; font-size: 20px;">📄 Load Engagement Letter</h3>
+            <p style="color: #64748b; margin-bottom: 20px; font-size: 15px;">Load the document you generated in the wizard to edit and finalize for printing.</p>
+            
+            <button id="el-load-print-content" class="button button-primary button-large" style="padding: 15px 40px !important; font-size: 16px !important; height: auto !important;">
+                📂 Load Document
             </button>
+            
+            <div id="el-print-editor-loading" style="display: none; margin-top: 20px;">
+                <div class="spinner is-active" style="float: none; margin: 0 auto;"></div>
+                <p style="color: #64748b; margin-top: 10px;">Loading...</p>
+            </div>
+        </div>
+        
+        <!-- Print Options -->
+        <div class="el-print-options" style="display: none; background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+            
             <?php if ($can_edit): ?>
-            <button type="button" id="el-save-print-content" class="el-btn el-btn-success" style="display:none;">
-                <span class="dashicons dashicons-saved"></span> Save & Generate Link
-            </button>
-            <div class="el-edit-toolbar" style="display:none; margin-left: 20px;">
-                <button type="button" class="el-format-btn" data-command="bold" title="Bold">
-                    <strong>B</strong>
-                </button>
-                <button type="button" class="el-format-btn" data-command="italic" title="Italic">
-                    <em>I</em>
-                </button>
-                <button type="button" class="el-format-btn" data-command="underline" title="Underline">
-                    <u>U</u>
-                </button>
-                <button type="button" class="el-format-btn" data-command="justifyLeft" title="Align Left">
-                    ☰
-                </button>
-                <button type="button" class="el-format-btn" data-command="justifyCenter" title="Align Center">
-                    ≡
-                </button>
-                <button type="button" class="el-format-btn" data-command="justifyRight" title="Align Right">
-                    ☷
-                </button>
+            <div class="el-edit-toolbar" style="display: none; margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid #e2e8f0;">
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <button class="el-format-btn button" data-command="bold" title="Bold" style="min-width: 40px;"><strong>B</strong></button>
+                    <button class="el-format-btn button" data-command="italic" title="Italic" style="min-width: 40px;"><em>I</em></button>
+                    <button class="el-format-btn button" data-command="underline" title="Underline" style="min-width: 40px;"><u>U</u></button>
+                    <button class="el-format-btn button" data-command="justifyLeft" title="Align Left">⬅️ Left</button>
+                    <button class="el-format-btn button" data-command="justifyCenter" title="Center">↔️ Center</button>
+                    <button class="el-format-btn button" data-command="justifyRight" title="Align Right">➡️ Right</button>
+                </div>
             </div>
             <?php endif; ?>
-            <div id="el-share-link-container" style="display:none; margin-left:20px; flex:1;">
-                <div style="display:flex; gap:10px; align-items:center; background:#f0f9ff; padding:10px; border-radius:6px; border:2px solid #3b82f6;">
-                    <span style="font-weight:600; color:#1e40af;">📎 Share Link:</span>
-                    <input type="text" id="el-share-link" readonly style="flex:1; padding:8px; border:1px solid #bfdbfe; border-radius:4px; font-family:monospace; font-size:12px;">
-                    <button type="button" id="el-copy-link" class="el-btn el-btn-accent">
-                        <span class="dashicons dashicons-clipboard"></span> Copy Link
-                    </button>
-                </div>
-                <p style="margin:5px 0 0 0; font-size:12px; color:#64748b;">
-                    ⏱ Link expires in 14 days | 🔒 Encrypted & secure
-                </p>
+            
+            <div style="margin-bottom: 20px; background: #fffbeb; border: 1px solid #fcd34d; border-radius: 6px; padding: 15px;">
+                <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; margin: 0;">
+                    <input type="checkbox" id="el-paper-only-toggle" style="width: 20px; height: 20px;">
+                    <span style="font-weight: 600; flex: 1;">Paper-Only Mode</span>
+                    <span style="color: #92400e; font-size: 13px;">Adds client signature line to each page</span>
+                </label>
             </div>
-            <div class="el-editor-status"></div>
         </div>
         
-        <div id="el-print-editor-loading" style="display:none; text-align:center; padding:40px;">
-            <div class="spinner" style="visibility:visible; float:none; margin:0 auto 20px;"></div>
-            <p>Loading print-ready document...</p>
-        </div>
+        <!-- Status Messages -->
+        <div class="el-editor-status" style="margin-bottom: 20px; padding: 12px 20px; border-radius: 6px; display: none;"></div>
         
+        <!-- Editor Content -->
         <?php if ($can_edit): ?>
-        <div id="el-print-editor-content" 
-             contenteditable="true" 
-             style="display:none; background:#e5e5e5; padding:20px; overflow-y:auto; min-height:80vh; outline:none;">
-            <!-- Content will be loaded here -->
-        </div>
+        <div id="el-print-editor-content" contenteditable="true" style="display: none; background: white; border: 2px solid #e2e8f0; border-radius: 8px; padding: 40px; min-height: 600px; font-family: 'Times New Roman', Times, serif; font-size: 12pt; line-height: 1.6;"></div>
         <?php else: ?>
-        <div id="el-print-preview-readonly" style="display:none; background:#e5e5e5; padding:20px; overflow-y:auto; max-height:80vh;">
-            <!-- Print preview will be loaded here -->
-        </div>
+        <div id="el-print-preview-readonly" style="display: none; background: white; border: 2px solid #e2e8f0; border-radius: 8px; padding: 40px; min-height: 600px; font-family: 'Times New Roman', Times, serif; font-size: 12pt; line-height: 1.6;"></div>
         <?php endif; ?>
+        
+        <!-- Action Buttons -->
+        <div class="el-editor-actions" style="display: none; margin-top: 20px; display: flex; gap: 12px; flex-wrap: wrap;">
+            <?php if ($can_edit): ?>
+            <button id="el-save-print-content" class="button button-primary button-large" style="display: none;">💾 Save Document</button>
+            <?php endif; ?>
+            <button id="el-print-now" class="button button-large">🖨️ Print</button>
+            <button id="el-download-pdf-preview" class="button button-large">📥 Download PDF</button>
+        </div>
+        
+        <!-- Share Link -->
+        <div id="el-share-link-container" style="display: none; margin-top: 20px; background: #f0fdf4; border: 2px solid #86efac; border-radius: 8px; padding: 20px;">
+            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #166534;">📋 Shareable Link (89 days):</label>
+            <div style="display: flex; gap: 10px;">
+                <input type="text" id="el-share-link" readonly style="flex: 1; padding: 10px 15px; border: 1px solid #cbd5e1; border-radius: 4px; font-family: monospace; font-size: 14px;">
+                <button id="el-copy-link" class="button button-large"><span class="dashicons dashicons-clipboard"></span> Copy</button>
+            </div>
+        </div>
     </div>
     
     <style>
-    .el-editor-container {
-        max-width: 100%;
-        margin: 0 auto;
-        background: #ffffff;
-        padding: 20px;
-        border-radius: 8px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    }
-    
-    .el-editor-toolbar {
-        display: flex;
-        gap: 10px;
-        align-items: center;
-        margin-bottom: 20px;
-        padding-bottom: 20px;
-        border-bottom: 2px solid #e5e7eb;
-        flex-wrap: wrap;
-    }
-    
-    .el-edit-toolbar {
-        display: flex;
-        gap: 5px;
-        padding: 5px 10px;
-        background: #f3f4f6;
-        border-radius: 4px;
-    }
-    
-    .el-format-btn {
-        padding: 8px 12px;
-        background: white;
-        border: 1px solid #d1d5db;
-        border-radius: 4px;
-        cursor: pointer;
-        font-size: 14px;
-        transition: all 0.2s;
-    }
-    
-    .el-format-btn:hover {
-        background: #e5e7eb;
-        border-color: #9ca3af;
-    }
-    
-    .el-format-btn:active {
-        background: #d1d5db;
-    }
-    
-    .el-btn {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        padding: 12px 24px;
-        font-size: 16px;
-        font-weight: 600;
-        border: none;
-        border-radius: 6px;
-        cursor: pointer;
-        transition: all 0.3s ease;
-    }
-    
-    .el-btn-primary {
-        background: #4a90e2;
-        color: white;
-    }
-    
-    .el-btn-primary:hover {
-        background: #357abd;
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(74, 144, 226, 0.3);
-    }
-    
-    .el-btn-success {
-        background: #10b981;
-        color: white;
-    }
-    
-    .el-btn-success:hover {
-        background: #059669;
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
-    }
-    
-    .el-btn-accent {
-        background: #f59e0b;
-        color: white;
-    }
-    
-    .el-btn-accent:hover {
-        background: #d97706;
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
-    }
-    
-    .el-editor-status {
-        margin-left: auto;
-        padding: 8px 16px;
-        border-radius: 4px;
-        font-weight: 500;
-    }
-    
-    .el-editor-status.success {
-        background: #d1fae5;
-        color: #065f46;
-    }
-    
-    .el-editor-status.error {
-        background: #fee2e2;
-        color: #991b1b;
-    }
-    
-    .el-editor-status.info {
-        background: #dbeafe;
-        color: #1e40af;
-    }
-    
-    /* ContentEditable styling */
-    #el-print-editor-content[contenteditable="true"]:focus {
-        outline: 2px solid #4a90e2;
-        outline-offset: 4px;
-    }
-    
-    /* Print preview styling for readonly view */
-    #el-print-preview-readonly {
-        font-family: 'Times New Roman', Times, serif;
-    }
-    
-    #el-print-preview-readonly .print-page {
-        width: 210mm;
-        height: 297mm;
-        min-height: 297mm;
-        background: white;
-        margin: 0 auto 20mm auto;
-        padding: 20mm 15mm 25mm 15mm;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        page-break-after: always;
-        overflow: hidden;
-        position: relative;
-    }
+    .el-editor-status.success { background: #d1fae5; color: #065f46; border: 2px solid #86efac; display: block !important; }
+    .el-editor-status.error { background: #fee2e2; color: #991b1b; border: 2px solid #fca5a5; display: block !important; }
+    .el-editor-status.info { background: #dbeafe; color: #1e40af; border: 2px solid #93c5fd; display: block !important; }
+    .el-page-break-indicator { text-align: center; color: #94a3b8; font-size: 12px; padding: 10px; border-top: 2px dashed #cbd5e1; border-bottom: 2px dashed #cbd5e1; margin: 20px 0; background: #f8fafc; }
+    .el-signature-highlight { background: #fffbf0 !important; border: 2px dashed #ffc107 !important; padding: 8px !important; }
     </style>
     
-    <script>
-    jQuery(document).ready(function($) {
-        var editorLoaded = false;
-        var currentReference = '';
-        var canEdit = <?php echo $can_edit ? 'true' : 'false'; ?>;
-        
-        <?php if ($can_edit): ?>
-        // Format button handlers
-        $('.el-format-btn').on('click', function(e) {
-            e.preventDefault();
-            var command = $(this).data('command');
-            document.execCommand(command, false, null);
-            $('#el-print-editor-content').focus();
-        });
-        <?php endif; ?>
-        
-        // Load print content
-        $('#el-load-print-content').on('click', function() {
-            var $btn = $(this);
-            $btn.prop('disabled', true);
-            $('#el-print-editor-loading').show();
-            $('.el-editor-status').removeClass('success error info').text('');
-            
-            $.ajax({
-                url: el_ajax.ajax_url,
-                type: 'POST',
-                data: {
-                    action: 'el_load_print_editor',
-                    nonce: el_ajax.nonce
-                },
-                success: function(response) {
-                    if (response.success) {
-                        currentReference = response.data.reference;
-                        
-                        if (canEdit) {
-                            // Load complete HTML directly into contenteditable div
-                            $('#el-print-editor-content').html(response.data.html);
-                            
-                            editorLoaded = true;
-                            $('#el-print-editor-loading').hide();
-                            $('#el-print-editor-content').show();
-                            $('#el-save-print-content').show();
-                            $('.el-edit-toolbar').show();
-                            $btn.hide();
-                        } else {
-                            // Load as readonly preview
-                            $('#el-print-preview-readonly').html(response.data.html);
-                            $('#el-print-editor-loading').hide();
-                            $('#el-print-preview-readonly').show();
-                            $('#el-download-final-pdf').show();
-                            $btn.hide();
-                        }
-                        
-                        $('.el-editor-status')
-                            .addClass('success')
-                            .text('✓ Document loaded');
-                    } else {
-                        $('#el-print-editor-loading').hide();
-                        $('.el-editor-status')
-                            .addClass('error')
-                            .text('Error: ' + response.data.message);
-                        $btn.prop('disabled', false);
-                    }
-                },
-                error: function() {
-                    $('#el-print-editor-loading').hide();
-                    $('.el-editor-status')
-                        .addClass('error')
-                        .text('Connection error. Please try again.');
-                    $btn.prop('disabled', false);
-                }
-            });
-        });
-        
-        // Save edited content
-        $('#el-save-print-content').on('click', function() {
-            if (!editorLoaded) {
-                alert('Please load the document first');
-                return;
-            }
-            
-            var $btn = $(this);
-            $btn.prop('disabled', true);
-            $('.el-editor-status').removeClass('success error info').text('Saving...');
-            
-            // Get complete HTML from contenteditable div
-            var bodyContent = $('#el-print-editor-content').html();
-            
-            // Check if content already has DOCTYPE and HTML structure
-            var hasFullStructure = bodyContent.indexOf('<!DOCTYPE') !== -1;
-            
-            var fullHtml;
-            if (hasFullStructure) {
-                // Content already has full HTML structure, use as-is
-                fullHtml = bodyContent;
-            } else {
-                // Need to reconstruct full HTML document
-                // Extract any existing style tags from the content
-                var tempDiv = document.createElement('div');
-                tempDiv.innerHTML = bodyContent;
-                var styleTags = tempDiv.querySelectorAll('style');
-                var inlineStyles = '';
-                styleTags.forEach(function(style) {
-                    inlineStyles += style.outerHTML;
-                });
-                
-                // Build complete HTML document
-                fullHtml = '<!DOCTYPE html>\n' +
-                          '<html>\n' +
-                          '<head>\n' +
-                          '<meta charset="UTF-8">\n' +
-                          inlineStyles + '\n' +
-                          '</head>\n' +
-                          '<body>\n' +
-                          bodyContent + '\n' +
-                          '</body>\n' +
-                          '</html>';
-            }
-            
-            console.log('📦 Saving HTML length:', fullHtml.length);
-            console.log('📦 First 500 chars:', fullHtml.substring(0, 500));
-            
-            $.ajax({
-                url: el_ajax.ajax_url,
-                type: 'POST',
-                data: {
-                    action: 'el_save_edited_pdf',
-                    nonce: el_ajax.nonce,
-                    reference: currentReference,
-                    html: fullHtml
-                },
-                success: function(response) {
-                    console.log('💾 Save response:', response);
-                    if (response.success) {
-                        $('.el-editor-status')
-                            .addClass('success')
-                            .text('✓ ' + response.data.message);
-                        
-                        // Show share link
-                        if (response.data.share_url) {
-                            $('#el-share-link').val(response.data.share_url);
-                            $('#el-share-link-container').show();
-                        }
-                    } else {
-                        $('.el-editor-status')
-                            .addClass('error')
-                            .text('Error: ' + response.data.message);
-                    }
-                    $btn.prop('disabled', false);
-                },
-                error: function(xhr, status, error) {
-                    console.error('💾 Save error:', status, error);
-                    $('.el-editor-status')
-                        .addClass('error')
-                        .text('Save failed. Please try again.');
-                    $btn.prop('disabled', false);
-                }
-            });
-        });
-        
-        // Copy share link to clipboard
-        $('#el-copy-link').on('click', function() {
-            var linkInput = document.getElementById('el-share-link');
-            linkInput.select();
-            linkInput.setSelectionRange(0, 99999); // For mobile
-            
-            // Try modern clipboard API
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(linkInput.value).then(function() {
-                    $('.el-editor-status')
-                        .removeClass('error')
-                        .addClass('info')
-                        .text('✓ Link copied to clipboard!');
-                    
-                    setTimeout(function() {
-                        $('.el-editor-status').removeClass('info').text('');
-                    }, 3000);
-                }).catch(function() {
-                    fallbackCopy();
-                });
-            } else {
-                fallbackCopy();
-            }
-            
-            function fallbackCopy() {
-                try {
-                    document.execCommand('copy');
-                    $('.el-editor-status')
-                        .removeClass('error')
-                        .addClass('info')
-                        .text('✓ Link copied to clipboard!');
-                    
-                    setTimeout(function() {
-                        $('.el-editor-status').removeClass('info').text('');
-                    }, 3000);
-                } catch (err) {
-                    alert('Unable to copy automatically. Please copy the link manually.');
-                }
-            }
-        });
-    });
-    </script>
     <?php
     return ob_get_clean();
 }
 
+/**
+ * ================================================================
+ * AJAX: Load Document
+ * ================================================================
+ */
+add_action('wp_ajax_el_load_print_editor', 'el_handle_load_print_editor');
+add_action('wp_ajax_nopriv_el_load_print_editor', 'el_handle_load_print_editor');
+
+function el_handle_load_print_editor() {
+    check_ajax_referer('el_nonce', 'nonce');
+    
+    if (!current_user_can('edit_posts')) {
+        wp_send_json_error(['message' => 'Permission denied']);
+    }
+    
+    // Start session
+    if (!session_id()) {
+        session_start();
+    }
+    
+    // Get reference from session (set by Tab 4)
+    if (!isset($_SESSION['el_pdf_reference'])) {
+        wp_send_json_error(['message' => 'No document found. Please generate a PDF from Tab 4 first.']);
+    }
+    
+    $reference = sanitize_text_field($_SESSION['el_pdf_reference']);
+    
+    // Get PDF data from transient
+    $pdf_data = get_transient('el_pdf_data_' . $reference);
+    
+    if (!$pdf_data) {
+        wp_send_json_error(['message' => 'Document expired. Please regenerate from the wizard.']);
+    }
+    
+    // Load the preview-inline.php file to get el_render_engagement_letter_html function
+    $preview_file = get_stylesheet_directory() . '/preview-inline.php';
+    if (file_exists($preview_file)) {
+        require_once $preview_file;
+    }
+    
+    // Check if function exists
+    if (!function_exists('el_render_engagement_letter_html')) {
+        wp_send_json_error(['message' => 'Error: el_render_engagement_letter_html function not found']);
+    }
+    
+    // Generate the HTML
+    $html = el_render_engagement_letter_html($pdf_data);
+    
+    // Load pagination class if it exists
+    $pagination_file = get_stylesheet_directory() . '/class-el-pagination.php';
+    if (file_exists($pagination_file)) {
+        require_once $pagination_file;
+        
+        $paper_only = get_transient('el_paper_only_' . $reference) ?: false;
+        $paginator = new EL_Pagination();
+        $paginated = $paginator->paginate($html, $paper_only);
+        
+        wp_send_json_success([
+            'html' => $paginated['html'],
+            'reference' => $reference,
+            'total_pages' => $paginated['total_pages'],
+            'paper_only' => $paper_only
+        ]);
+    } else {
+        // No pagination - return raw HTML
+        wp_send_json_success([
+            'html' => $html,
+            'reference' => $reference,
+            'total_pages' => 1,
+            'paper_only' => false
+        ]);
+    }
+}
+
+/**
+ * ================================================================
+ * AJAX: Save Document
+ * ================================================================
+ */
+add_action('wp_ajax_el_save_edited_pdf', 'el_handle_save_edited_pdf');
+
+function el_handle_save_edited_pdf() {
+    check_ajax_referer('el_nonce', 'nonce');
+    
+    if (!current_user_can('edit_posts')) {
+        wp_send_json_error(['message' => 'Permission denied']);
+    }
+    
+    $reference = sanitize_text_field($_POST['reference'] ?? '');
+    $html = wp_kses_post($_POST['html'] ?? '');
+    $paper_only = (bool)($_POST['paper_only'] ?? false);
+    
+    if (!$reference || !$html) {
+        wp_send_json_error(['message' => 'Missing required data']);
+    }
+    
+    // Save to transient (89 days)
+    set_transient('el_saved_pdf_' . $reference, $html, 89 * DAY_IN_SECONDS);
+    set_transient('el_paper_only_' . $reference, $paper_only, 89 * DAY_IN_SECONDS);
+    
+    // Generate share URL
+    $share_url = home_url('/engagement-letter-preview/?ref=' . $reference);
+    
+    wp_send_json_success([
+        'message' => 'Document saved successfully',
+        'share_url' => $share_url,
+        'reference' => $reference
+    ]);
+}
+
+/**
+ * ================================================================
+ * AJAX: Toggle Paper-Only Mode
+ * ================================================================
+ */
+add_action('wp_ajax_el_toggle_paper_only', 'el_handle_toggle_paper_only');
+
+function el_handle_toggle_paper_only() {
+    check_ajax_referer('el_nonce', 'nonce');
+    
+    if (!current_user_can('edit_posts')) {
+        wp_send_json_error(['message' => 'Permission denied']);
+    }
+    
+    $reference = sanitize_text_field($_POST['reference'] ?? '');
+    $paper_only = (bool)($_POST['paper_only'] ?? false);
+    $content = wp_kses_post($_POST['content'] ?? '');
+    
+    // Save setting
+    set_transient('el_paper_only_' . $reference, $paper_only, 89 * DAY_IN_SECONDS);
+    
+    // Re-paginate
+    $pagination_file = get_stylesheet_directory() . '/class-el-pagination.php';
+    if (file_exists($pagination_file)) {
+        require_once $pagination_file;
+        $paginator = new EL_Pagination();
+        $paginated = $paginator->paginate($content, $paper_only);
+        
+        wp_send_json_success([
+            'html' => $paginated['html'],
+            'total_pages' => $paginated['total_pages'],
+            'message' => $paper_only ? 'Paper-only mode enabled' : 'Digital mode enabled'
+        ]);
+    } else {
+        wp_send_json_success([
+            'html' => $content,
+            'total_pages' => 1,
+            'message' => 'Mode updated (pagination not available)'
+        ]);
+    }
+}
+
+/**
+ * ================================================================
+ * AJAX: Download PDF
+ * ================================================================
+ */
+add_action('wp_ajax_el_download_pdf', 'el_handle_download_pdf');
+add_action('wp_ajax_nopriv_el_download_pdf', 'el_handle_download_pdf');
+
+function el_handle_download_pdf() {
+    check_ajax_referer('el_nonce', 'nonce');
+    
+    $reference = sanitize_text_field($_GET['ref'] ?? '');
+    
+    if (!$reference) {
+        wp_die('Invalid reference');
+    }
+    
+    // Get saved HTML
+    $html = get_transient('el_saved_pdf_' . $reference);
+    
+    if (!$html) {
+        // Try to get from original PDF data
+        $pdf_data = get_transient('el_pdf_data_' . $reference);
+        if ($pdf_data) {
+            $preview_file = get_stylesheet_directory() . '/preview-inline.php';
+            if (file_exists($preview_file)) {
+                require_once $preview_file;
+                if (function_exists('el_render_engagement_letter_html')) {
+                    $html = el_render_engagement_letter_html($pdf_data);
+                }
+            }
+        }
+    }
+    
+    if (!$html) {
+        wp_die('Document not found or expired');
+    }
+    
+    // Generate PDF filename
+    $filename = 'engagement-letter-' . $reference . '.pdf';
+    
+    // Headers for download (you would integrate with mPDF here)
+    header('Content-Type: application/pdf');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    
+    echo "PDF would be generated here using mPDF with the HTML content";
+    exit;
+}
 /**
  * Encryption and GDPR Compliance Functions
  */
@@ -7669,7 +7576,7 @@ function el_handle_client_signature_view() {
                 <div class="reference">Reference: <?php echo esc_html($reference); ?></div>
             </div>
             
-            <div id="el-pdf-preview-content">
+            <div id="el-pdf-$_SESSION['el_pdf_reference']-content">
                 <?php echo $html; ?>
             </div>
         </div>
