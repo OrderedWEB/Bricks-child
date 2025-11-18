@@ -1,7 +1,6 @@
 <?php
 /**
  * Enhanced Print Editor Shortcode
- * Drop-in replacement for [el_print_editor] with pagination and page signatures
  * 
  * @package Starne_Consulting_EL
  * @since 1.0.0
@@ -11,19 +10,24 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-// Include dependencies
-require_once plugin_dir_path(__FILE__) . 'class-el-pagination.php';
+// Include dependencies using theme directory path
+$theme_dir = get_stylesheet_directory();
+if (file_exists($theme_dir . '/class-el-pagination.php')) {
+    require_once $theme_dir . '/class-el-pagination.php';
+}
 
 /**
  * Enhanced shortcode: [el_print_editor]
  * Drop-in replacement with pagination support
  */
-add_shortcode('el_print_editor', 'el_print_editor_enhanced_shortcode');
+if (!shortcode_exists('el_print_editor')) {
+    add_shortcode('el_print_editor', 'el_print_editor_enhanced_shortcode');
+}
 
 function el_print_editor_enhanced_shortcode($atts) {
     // Parse attributes
     $atts = shortcode_atts([
-        'paper_only' => 'auto', // 'auto', 'true', 'false'
+        'paper_only' => 'auto',
         'show_signatures' => 'true'
     ], $atts);
     
@@ -35,36 +39,75 @@ function el_print_editor_enhanced_shortcode($atts) {
         $can_edit = get_user_meta($current_user->ID, 'el_can_edit_documents', true);
     }
     
-    // Enqueue enhanced scripts and styles
-    wp_enqueue_script('el-print-editor-enhanced', plugin_dir_url(__FILE__) . 'js/el-print-editor-enhanced.js', array('jquery'), '1.0.0', true);
-    wp_enqueue_style('el-print-editor-enhanced', plugin_dir_url(__FILE__) . 'css/el-print-editor-enhanced.css', array(), '1.0.0');
+    // FIX: Use proper theme URLs (not plugin URLs!)
+    $theme_url = get_stylesheet_directory_uri();
     
-    // Pass configuration to JavaScript
+    // Check if files exist and enqueue them with CORRECT URLs
+    $js_file = '/js/el-print-editor-enhanced.js';
+    $css_file = '/css/el-print-editor-enhanced.css';
+    
+    // Only enqueue if files exist
+    if (file_exists(get_stylesheet_directory() . $js_file)) {
+        wp_enqueue_script(
+            'el-print-editor-enhanced', 
+            $theme_url . $js_file, 
+            array('jquery'), 
+            '1.0.1', 
+            true
+        );
+    } else {
+        // Log error but don't break the site
+        error_log('EL Print Editor: JavaScript file not found at ' . get_stylesheet_directory() . $js_file);
+    }
+    
+    if (file_exists(get_stylesheet_directory() . $css_file)) {
+        wp_enqueue_style(
+            'el-print-editor-enhanced', 
+            $theme_url . $css_file, 
+            array(), 
+            '1.0.1'
+        );
+    } else {
+        // Log error but don't break the site
+        error_log('EL Print Editor: CSS file not found at ' . get_stylesheet_directory() . $css_file);
+    }
+    
+    // Localize script with proper data
     wp_localize_script('el-print-editor-enhanced', 'el_print_config', array(
         'ajax_url' => admin_url('admin-ajax.php'),
-        'nonce' => wp_create_nonce('el_nonce'),
-        'can_edit' => $can_edit,
+        'nonce' => wp_create_nonce('el_print_editor_nonce'),
         'paper_only_default' => get_option('el_default_paper_only', '0'),
-        'signature_format' => get_option('el_signature_format', 'Client signature …………..……………………… Date ………… Page %d/%d')
+        'signature_format' => get_option('el_signature_format', 'Client signature …………..……………………… Date ………… Page %d/%d'),
+        'is_admin' => current_user_can('manage_options'),
+        'can_edit' => $can_edit,
+        'current_user_id' => get_current_user_id(),
+        'theme_url' => $theme_url,
+        'debug' => defined('WP_DEBUG') && WP_DEBUG
     ));
     
+    // Output HTML structure
     ob_start();
     ?>
-    <div id="el-print-editor-wrapper" class="el-editor-container el-enhanced">
+    
+    <div class="el-editor-container">
         <!-- Toolbar -->
         <div class="el-editor-toolbar">
-            <button type="button" id="el-load-print-content" class="el-btn el-btn-primary">
-                <span class="dashicons dashicons-download"></span> Load Document
+            <!-- Action buttons -->
+            <button type="button" class="el-btn el-btn-primary" id="el-print-btn">
+                <span class="dashicons dashicons-printer"></span> Print
+            </button>
+            
+            <button type="button" class="el-btn el-btn-accent" id="el-download-btn">
+                <span class="dashicons dashicons-download"></span> Download PDF
             </button>
             
             <?php if ($can_edit): ?>
-            <!-- Save button -->
-            <button type="button" id="el-save-print-content" class="el-btn el-btn-success" style="display:none;">
-                <span class="dashicons dashicons-saved"></span> Save & Generate Link
+            <button type="button" class="el-btn el-btn-success" id="el-save-btn">
+                <span class="dashicons dashicons-saved"></span> Save Changes
             </button>
             
             <!-- Edit toolbar -->
-            <div class="el-edit-toolbar" style="display:none; margin-left: 20px;">
+            <div class="el-edit-toolbar">
                 <button type="button" class="el-format-btn" data-command="bold" title="Bold">
                     <strong>B</strong>
                 </button>
@@ -74,14 +117,15 @@ function el_print_editor_enhanced_shortcode($atts) {
                 <button type="button" class="el-format-btn" data-command="underline" title="Underline">
                     <u>U</u>
                 </button>
+                <span class="separator">|</span>
                 <button type="button" class="el-format-btn" data-command="justifyLeft" title="Align Left">
-                    ☰
+                    ⬅
                 </button>
                 <button type="button" class="el-format-btn" data-command="justifyCenter" title="Align Center">
-                    ≡
+                    ⬌
                 </button>
                 <button type="button" class="el-format-btn" data-command="justifyRight" title="Align Right">
-                    ☷
+                    ➡
                 </button>
                 <span class="separator">|</span>
                 <button type="button" class="el-format-btn" data-command="insertOrderedList" title="Numbered List">
@@ -102,20 +146,6 @@ function el_print_editor_enhanced_shortcode($atts) {
                 </label>
             </div>
             
-            <!-- Share link container -->
-            <div id="el-share-link-container" style="display:none; margin-left:20px; flex:1;">
-                <div style="display:flex; gap:10px; align-items:center; background:#f0f9ff; padding:10px; border-radius:6px; border:2px solid #3b82f6;">
-                    <span style="font-weight:600; color:#1e40af;">📎 Share Link:</span>
-                    <input type="text" id="el-share-link" readonly style="flex:1; padding:8px; border:1px solid #bfdbfe; border-radius:4px; font-family:monospace; font-size:12px;">
-                    <button type="button" id="el-copy-link" class="el-btn el-btn-accent">
-                        <span class="dashicons dashicons-clipboard"></span> Copy
-                    </button>
-                </div>
-                <p style="margin:5px 0 0 0; font-size:12px; color:#64748b;">
-                    ⏱ Link expires in 14 days | 🔒 Encrypted & secure
-                </p>
-            </div>
-            
             <!-- Status indicator -->
             <div class="el-editor-status"></div>
         </div>
@@ -129,414 +159,226 @@ function el_print_editor_enhanced_shortcode($atts) {
                 <span class="el-stat">
                     <strong>Mode:</strong> <span id="el-print-mode">Digital</span>
                 </span>
-                <span class="el-stat" id="el-signature-indicator" style="display:none;">
-                    <span class="dashicons dashicons-edit"></span> Page signatures enabled
-                </span>
-            </div>
-            <div class="el-view-controls">
-                <button type="button" class="el-view-btn active" data-view="edit">
-                    <span class="dashicons dashicons-edit"></span> Edit View
-                </button>
-                <button type="button" class="el-view-btn" data-view="preview">
-                    <span class="dashicons dashicons-visibility"></span> Print Preview
-                </button>
             </div>
         </div>
         
         <!-- Loading indicator -->
         <div id="el-print-editor-loading" style="display:none; text-align:center; padding:40px;">
             <div class="spinner" style="visibility:visible; float:none; margin:0 auto 20px;"></div>
-            <p>Loading print-ready document with pagination optimization...</p>
+            <p>Loading print-ready document...</p>
         </div>
         
         <?php if ($can_edit): ?>
         <!-- Editable content area -->
         <div id="el-print-editor-content" 
              contenteditable="true" 
-             style="display:none; background:#e5e5e5; padding:20px; overflow-y:auto; min-height:80vh; outline:none;"
-             data-paper-only="false">
+             style="display:none; background:#f5f5f5; padding:20px; min-height:500px; border:1px solid #ddd; border-radius:4px;">
             <!-- Content will be loaded here -->
         </div>
         <?php else: ?>
         <!-- Read-only preview -->
-        <div id="el-print-preview-readonly" style="display:none; background:#e5e5e5; padding:20px; overflow-y:auto; max-height:80vh;">
-            <!-- Print preview will be loaded here -->
+        <div id="el-print-preview-readonly" 
+             style="display:none; background:#f5f5f5; padding:20px; min-height:500px; border:1px solid #ddd; border-radius:4px;">
+            <!-- Content will be loaded here -->
         </div>
         <?php endif; ?>
-        
-        <!-- Print preview overlay (for preview mode) -->
-        <div id="el-print-preview-overlay" class="el-preview-overlay" style="display:none;">
-            <div class="el-preview-header">
-                <h3>Print Preview</h3>
-                <button type="button" class="el-close-preview">✕</button>
-            </div>
-            <div class="el-preview-content">
-                <!-- Preview will be rendered here -->
-            </div>
-            <div class="el-preview-footer">
-                <button type="button" class="el-btn el-btn-primary" id="el-print-now">
-                    <span class="dashicons dashicons-printer"></span> Print Now
-                </button>
-                <button type="button" class="el-btn" id="el-download-pdf-preview">
-                    <span class="dashicons dashicons-pdf"></span> Download PDF
-                </button>
-            </div>
-        </div>
-        
-        <!-- Bottom action bar -->
-        <div class="el-editor-actions" style="display:none;">
-            <?php if (!$can_edit): ?>
-            <button type="button" id="el-download-final-pdf" class="el-btn el-btn-primary">
-                <span class="dashicons dashicons-download"></span> Download PDF
-            </button>
-            <?php endif; ?>
-        </div>
     </div>
-    <?php
     
+    <!-- Add inline styles if CSS file is missing -->
+    <?php if (!file_exists(get_stylesheet_directory() . $css_file)): ?>
+    <style>
+    .el-editor-container {
+        max-width: 100%;
+        margin: 0 auto;
+        background: #ffffff;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .el-editor-toolbar {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        margin-bottom: 20px;
+        padding-bottom: 20px;
+        border-bottom: 2px solid #e5e7eb;
+        flex-wrap: wrap;
+    }
+    .el-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 600;
+    }
+    .el-btn-primary {
+        background: #4a90e2;
+        color: white;
+    }
+    .el-btn-accent {
+        background: #f59e0b;
+        color: white;
+    }
+    .el-btn-success {
+        background: #10b981;
+        color: white;
+    }
+    .el-edit-toolbar {
+        display: flex;
+        gap: 5px;
+        padding: 5px 10px;
+        background: #f3f4f6;
+        border-radius: 4px;
+    }
+    .el-format-btn {
+        padding: 6px 10px;
+        background: white;
+        border: 1px solid #d1d5db;
+        border-radius: 3px;
+        cursor: pointer;
+    }
+    </style>
+    <?php endif; ?>
+    
+    <?php
     return ob_get_clean();
 }
 
-/**
- * Enhanced AJAX handler for loading print editor content
- */
-add_action('wp_ajax_el_load_print_editor', 'el_ajax_load_print_editor_enhanced');
-add_action('wp_ajax_nopriv_el_load_print_editor', 'el_ajax_load_print_editor_enhanced');
+// Include AJAX handlers only if they don't exist
+if (!has_action('wp_ajax_el_load_print_editor')) {
+    add_action('wp_ajax_el_load_print_editor', 'el_ajax_load_print_editor_enhanced');
+    add_action('wp_ajax_nopriv_el_load_print_editor', 'el_ajax_load_print_editor_enhanced');
+}
 
-function el_ajax_load_print_editor_enhanced() {
-    check_ajax_referer('el_nonce', 'nonce');
-    
-    if (!session_id()) {
-        session_start();
-    }
-    
-    // Get PDF reference from session
-    $pdf_reference = $_SESSION['el_pdf_reference'] ?? '';
-    
-    if (empty($pdf_reference)) {
-        wp_send_json_error(['message' => 'No PDF data found. Please generate preview first.']);
-        return;
-    }
-    
-    // Get PDF data
-    $pdf_data = get_transient('el_pdf_data_' . $pdf_reference);
-    
-    if (!$pdf_data) {
-        wp_send_json_error(['message' => 'PDF data expired. Please regenerate.']);
-        return;
-    }
-    
-    // Check if paper-only mode
-    $is_paper_only = EL_Pagination_Handler::is_paper_only($pdf_data);
-    
-    // Generate HTML with pagination
-    $pagination_options = [
-        'paper_only' => $is_paper_only,
-        'add_page_signatures' => $is_paper_only,
-        'signature_format' => get_option('el_signature_format', 'Client signature …………..……………………… Date ………… Page %d/%d')
-    ];
-    
-    // Get base HTML
-    $base_html = el_render_print_ready_html_enhanced($pdf_data);
-    
-    // Apply pagination
-    $paginated_result = EL_Pagination_Handler::paginate_content($base_html, $pagination_options);
-    
-    wp_send_json_success([
-        'reference' => $pdf_reference,
-        'html' => $paginated_result['html'],
-        'total_pages' => $paginated_result['total_pages'],
-        'paper_only' => $is_paper_only,
-        'can_edit' => current_user_can('edit_documents')
-    ]);
+if (!has_action('wp_ajax_el_save_edited_pdf')) {
+    add_action('wp_ajax_el_save_edited_pdf', 'el_ajax_save_edited_pdf_enhanced');
+    add_action('wp_ajax_nopriv_el_save_edited_pdf', 'el_ajax_save_edited_pdf_enhanced');
 }
 
 /**
- * Enhanced AJAX handler for saving edited content
+ * Enhanced AJAX handler for loading editor content
  */
-add_action('wp_ajax_el_save_edited_pdf', 'el_ajax_save_edited_pdf_enhanced');
-add_action('wp_ajax_nopriv_el_save_edited_pdf', 'el_ajax_save_edited_pdf_enhanced');
-
-function el_ajax_save_edited_pdf_enhanced() {
-    check_ajax_referer('el_nonce', 'nonce');
+function el_ajax_load_print_editor_enhanced() {
+    // Verify nonce
+    check_ajax_referer('el_print_editor_nonce', 'nonce');
     
-    // Check permissions
-    $current_user = wp_get_current_user();
-    if (!$current_user->ID) {
-        wp_send_json_error(['message' => 'Not logged in']);
-        return;
+    $reference = isset($_POST['reference']) ? sanitize_text_field($_POST['reference']) : '';
+    $paper_only = isset($_POST['paper_only']) ? $_POST['paper_only'] === 'true' : false;
+    
+    if (empty($reference)) {
+        wp_send_json_error(['message' => 'No reference provided']);
     }
     
-    $can_edit = get_user_meta($current_user->ID, 'el_can_edit_documents', true);
-    if (!$can_edit) {
-        wp_send_json_error(['message' => 'You do not have permission to edit documents']);
-        return;
+    // Get PDF data
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'el_pdfs';
+    
+    // Check if table exists
+    if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") != $table_name) {
+        wp_send_json_error(['message' => 'PDF table not found. Please contact support.']);
     }
     
-    $reference = sanitize_text_field($_POST['reference'] ?? '');
-    $edited_html = wp_kses_post($_POST['html'] ?? '');
-    $paper_only = filter_var($_POST['paper_only'] ?? false, FILTER_VALIDATE_BOOLEAN);
+    $pdf_data = $wpdb->get_row($wpdb->prepare(
+        "SELECT * FROM $table_name WHERE reference = %s",
+        $reference
+    ), ARRAY_A);
     
-    if (empty($reference) || empty($edited_html)) {
-        wp_send_json_error(['message' => 'Missing required data']);
-        return;
-    }
-    
-    // Get original PDF data
-    $pdf_data = get_transient('el_pdf_data_' . $reference);
     if (!$pdf_data) {
-        wp_send_json_error(['message' => 'Reference expired']);
-        return;
+        wp_send_json_error(['message' => 'Document not found']);
     }
     
-    // Re-apply pagination to edited content if needed
-    if ($paper_only) {
+    // Decrypt HTML content if encryption function exists
+    $html = $pdf_data['html'];
+    if (function_exists('el_decrypt_data')) {
+        $decrypted = el_decrypt_data($html);
+        if ($decrypted) {
+            $html = $decrypted;
+        }
+    }
+    
+    // Apply pagination if requested and handler exists
+    $response_data = [
+        'html' => $html,
+        'paper_only' => $paper_only,
+        'pages' => 1,
+        'reference' => $reference
+    ];
+    
+    if ($paper_only && class_exists('EL_Pagination_Handler')) {
         $pagination_options = [
             'paper_only' => true,
             'add_page_signatures' => true,
             'signature_format' => get_option('el_signature_format', 'Client signature …………..……………………… Date ………… Page %d/%d')
         ];
         
-        $paginated_result = EL_Pagination_Handler::paginate_content($edited_html, $pagination_options);
-        $final_html = $paginated_result['html'];
-        $pdf_data['total_pages'] = $paginated_result['total_pages'];
-    } else {
-        $final_html = $edited_html;
+        $paginated = EL_Pagination_Handler::paginate_content($html, $pagination_options);
+        $response_data['html'] = $paginated['html'];
+        $response_data['pages'] = $paginated['page_count'];
+        $response_data['paginated'] = true;
     }
     
-    // Store edited version
-    $pdf_data['edited_html'] = $final_html;
-    $pdf_data['edited_by'] = $current_user->ID;
-    $pdf_data['edited_at'] = current_time('mysql');
-    $pdf_data['paper_only'] = $paper_only;
-    
-    // Update transient with longer expiry for sharing
-    set_transient('el_pdf_data_' . $reference, $pdf_data, 14 * DAY_IN_SECONDS);
-    
-    // Generate shareable link
-    $share_url = add_query_arg([
-        'el_view' => 'engagement_letter',
-        'ref' => $reference,
-        'token' => wp_generate_password(20, false)
-    ], home_url());
-    
-    // Store share token
-    set_transient('el_share_' . $reference, [
-        'token' => wp_hash($reference . $pdf_data['edited_at']),
-        'expires' => time() + (14 * DAY_IN_SECONDS)
-    ], 14 * DAY_IN_SECONDS);
-    
-    // Log in print history
-    el_log_print_activity($reference, 'saved', $paper_only);
-    
-    wp_send_json_success([
-        'message' => 'Document saved successfully',
-        'share_url' => $share_url,
-        'reference' => $reference,
-        'total_pages' => $pdf_data['total_pages'] ?? 1,
-        'paper_only' => $paper_only
-    ]);
+    wp_send_json_success($response_data);
 }
 
 /**
- * AJAX handler to toggle paper-only mode
+ * Enhanced AJAX handler for saving edited content
  */
-add_action('wp_ajax_el_toggle_paper_only', 'el_ajax_toggle_paper_only');
-add_action('wp_ajax_nopriv_el_toggle_paper_only', 'el_ajax_toggle_paper_only');
-
-function el_ajax_toggle_paper_only() {
-    check_ajax_referer('el_nonce', 'nonce');
+function el_ajax_save_edited_pdf_enhanced() {
+    // Verify nonce
+    check_ajax_referer('el_print_editor_nonce', 'nonce');
     
-    $reference = sanitize_text_field($_POST['reference'] ?? '');
-    $paper_only = filter_var($_POST['paper_only'] ?? false, FILTER_VALIDATE_BOOLEAN);
-    $content = wp_kses_post($_POST['content'] ?? '');
+    $reference = isset($_POST['reference']) ? sanitize_text_field($_POST['reference']) : '';
+    $content = isset($_POST['content']) ? wp_kses_post($_POST['content']) : '';
+    $paper_only = isset($_POST['paper_only']) ? $_POST['paper_only'] === 'true' : false;
     
-    if (empty($reference)) {
-        wp_send_json_error(['message' => 'Missing reference']);
-        return;
+    if (empty($reference) || empty($content)) {
+        wp_send_json_error(['message' => 'Invalid data']);
     }
     
-    // Get PDF data
-    $pdf_data = get_transient('el_pdf_data_' . $reference);
-    if (!$pdf_data) {
-        wp_send_json_error(['message' => 'Reference expired']);
-        return;
+    // Check permissions
+    $current_user = wp_get_current_user();
+    $can_edit = get_user_meta($current_user->ID, 'el_can_edit_documents', true);
+    
+    if (!$can_edit) {
+        wp_send_json_error(['message' => 'You do not have permission to edit documents']);
     }
     
-    // Update paper-only setting
-    $pdf_data['paper_only'] = $paper_only;
+    // Remove pagination markers if handler exists
+    if (class_exists('EL_Pagination_Handler')) {
+        $content = EL_Pagination_Handler::remove_pagination_markers($content);
+    }
     
-    // Re-paginate content
-    $pagination_options = [
-        'paper_only' => $paper_only,
-        'add_page_signatures' => $paper_only,
-        'signature_format' => get_option('el_signature_format', 'Client signature …………..……………………… Date ………… Page %d/%d')
-    ];
+    // Encrypt if function exists
+    $html_to_save = $content;
+    if (function_exists('el_encrypt_data')) {
+        $encrypted = el_encrypt_data($content);
+        if ($encrypted) {
+            $html_to_save = $encrypted;
+        }
+    }
     
-    // Use provided content or existing HTML
-    $html_to_paginate = !empty($content) ? $content : ($pdf_data['edited_html'] ?? el_render_print_ready_html_enhanced($pdf_data));
-    
-    $paginated_result = EL_Pagination_Handler::paginate_content($html_to_paginate, $pagination_options);
-    
-    // Update transient
-    $pdf_data['edited_html'] = $paginated_result['html'];
-    $pdf_data['total_pages'] = $paginated_result['total_pages'];
-    set_transient('el_pdf_data_' . $reference, $pdf_data, HOUR_IN_SECONDS);
-    
-    wp_send_json_success([
-        'html' => $paginated_result['html'],
-        'total_pages' => $paginated_result['total_pages'],
-        'paper_only' => $paper_only,
-        'message' => $paper_only ? 'Paper-only mode enabled' : 'Digital mode enabled'
-    ]);
-}
-
-/**
- * Log print activity
- */
-function el_log_print_activity($reference, $action, $paper_only = false) {
     global $wpdb;
+    $table_name = $wpdb->prefix . 'el_pdfs';
     
-    $table_name = $wpdb->prefix . 'el_print_history';
+    $updated = $wpdb->update(
+        $table_name,
+        [
+            'html' => $html_to_save,
+            'updated_at' => current_time('mysql')
+        ],
+        ['reference' => $reference]
+    );
     
-    // Check if table exists
-    if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") === $table_name) {
-        $wpdb->insert(
-            $table_name,
-            [
-                'reference' => $reference,
-                'user_id' => get_current_user_id(),
-                'action' => $action,
-                'paper_only' => $paper_only ? 1 : 0,
-                'timestamp' => current_time('mysql')
-            ],
-            ['%s', '%d', '%s', '%d', '%s']
-        );
-    }
-}
-
-/**
- * Handle viewing shared engagement letters
- */
-add_action('template_redirect', 'el_handle_shared_view');
-function el_handle_shared_view() {
-    if (get_query_var('el_view') !== 'engagement_letter') {
-        return;
+    if ($updated === false) {
+        wp_send_json_error(['message' => 'Failed to save changes']);
     }
     
-    $reference = sanitize_text_field($_GET['ref'] ?? '');
-    $token = sanitize_text_field($_GET['token'] ?? '');
-    
-    if (empty($reference) || empty($token)) {
-        wp_die('Invalid link');
-    }
-    
-    // Verify token
-    $share_data = get_transient('el_share_' . $reference);
-    if (!$share_data || $share_data['expires'] < time()) {
-        wp_die('Link expired');
-    }
-    
-    // Get PDF data
-    $pdf_data = get_transient('el_pdf_data_' . $reference);
-    if (!$pdf_data) {
-        wp_die('Document not found');
-    }
-    
-    // Display the document
-    el_display_shared_document($pdf_data, $reference);
-    exit;
-}
-
-/**
- * Display shared document
- */
-function el_display_shared_document($pdf_data, $reference) {
-    ?>
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Engagement Letter - <?php echo esc_html($reference); ?></title>
-        <?php echo el_get_print_styles($pdf_data['paper_only'] ?? false); ?>
-        <style>
-            .viewer-header {
-                position: fixed;
-                top: 0;
-                left: 0;
-                right: 0;
-                background: #1e293b;
-                color: white;
-                padding: 15px 30px;
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                z-index: 1000;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-            }
-            
-            .viewer-header h1 {
-                margin: 0;
-                font-size: 18px;
-                font-weight: 500;
-            }
-            
-            .viewer-actions {
-                display: flex;
-                gap: 10px;
-            }
-            
-            .viewer-btn {
-                padding: 8px 16px;
-                background: #3b82f6;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                cursor: pointer;
-                font-size: 14px;
-                transition: background 0.2s;
-            }
-            
-            .viewer-btn:hover {
-                background: #2563eb;
-            }
-            
-            .viewer-content {
-                margin-top: 70px;
-                padding: 20px;
-                background: #e5e5e5;
-            }
-            
-            @media print {
-                .viewer-header {
-                    display: none;
-                }
-                
-                .viewer-content {
-                    margin-top: 0;
-                    padding: 0;
-                    background: white;
-                }
-            }
-        </style>
-    </head>
-    <body>
-        <div class="viewer-header">
-            <h1>Engagement Letter - <?php echo esc_html($reference); ?></h1>
-            <div class="viewer-actions">
-                <button onclick="window.print()" class="viewer-btn">
-                    📄 Print
-                </button>
-                <a href="?el_download=1&ref=<?php echo esc_attr($reference); ?>" class="viewer-btn">
-                    💾 Download PDF
-                </a>
-            </div>
-        </div>
-        <div class="viewer-content">
-            <?php echo $pdf_data['edited_html'] ?? el_render_print_ready_html_enhanced($pdf_data); ?>
-        </div>
-    </body>
-    </html>
-    <?php
+    wp_send_json_success([
+        'message' => 'Changes saved successfully',
+        'timestamp' => current_time('mysql')
+    ]);
 }

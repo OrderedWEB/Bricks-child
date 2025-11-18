@@ -1,6 +1,7 @@
+
 <?php
 /**
- * Engagement Letter System 
+ * Engagement Letter System Functions - Fixed Theme Path Version
  */
 
 // Prevent direct access
@@ -8,29 +9,143 @@ if (!defined('ABSPATH')) exit;
 
 /**
  * =================================================================
- * PART 1: AJAX FORM SUBMISSION HANDLER FOR TAB 1
+ * CENTRALIZED SESSION MANAGEMENT
+ * Start session early in WordPress lifecycle before any output
+ * =================================================================
+ */
+
+/**
+ * Start session on WordPress init hook - runs before any output
+ */
+function el_init_session() {
+    // Only start session if not already started
+    if (!session_id() && !headers_sent()) {
+        // Set session cookie parameters for better security
+        session_set_cookie_params([
+            'lifetime' => 86400, // 24 hours
+            'path' => COOKIEPATH,
+            'domain' => COOKIE_DOMAIN,
+            'secure' => is_ssl(),
+            'httponly' => true,
+            'samesite' => 'Lax'
+        ]);
+        
+        // Start the session
+        session_start();
+        
+        // Log for debugging (remove in production)
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            error_log('EL Session started at init hook');
+        }
+    }
+}
+
+// Hook to init with priority 1 (very early)
+add_action('init', 'el_init_session', 1);
+
+/**
+ * Alternative: Start session even earlier if needed
+ * Uncomment if init is still too late
+ */
+// add_action('after_setup_theme', 'el_init_session', 1);
+
+/**
+ * Helper function to safely get session value
+ */
+function el_get_session($key, $default = null) {
+    // Ensure session is started
+    if (!session_id() && !headers_sent()) {
+        // Session already started via init hook
+    }
+    
+    return isset($_SESSION[$key]) ? $_SESSION[$key] : $default;
+}
+
+/**
+ * Helper function to safely set session value
+ */
+function el_set_session($key, $value) {
+    // Ensure session is started
+    if (!session_id() && !headers_sent()) {
+        // Session already started via init hook
+    }
+    
+    $_SESSION[$key] = $value;
+}
+
+/**
+ * Helper function to safely unset session value
+ */
+function el_unset_session($key) {
+    // Ensure session is started
+    if (!session_id() && !headers_sent()) {
+        // Session already started via init hook
+    }
+    
+    if (isset($_SESSION[$key])) {
+        unset($_SESSION[$key]);
+    }
+}
+
+/**
+ * Helper function to check if session is active
+ */
+function el_session_active() {
+    return session_id() !== '';
+}
+
+/**
+ * Clean up session on logout
+ */
+add_action('wp_logout', function() {
+    if (session_id()) {
+        session_destroy();
+    }
+});
+
+
+/**
+ * =================================================================
+ * ENHANCED PRINT EDITOR INTEGRATION
  * =================================================================
  */
 function el_integrate_enhanced_print_editor() {
+    // Get theme directory path
+    $theme_dir = get_stylesheet_directory();
+    
     // Only load if we haven't already loaded the original shortcode
     if (!shortcode_exists('el_print_editor')) {
-        // Include the enhanced version
-        require_once plugin_dir_path(__FILE__) . 'el-print-editor-enhanced.php';
-        require_once plugin_dir_path(__FILE__) . 'class-el-pagination.php';
-        require_once plugin_dir_path(__FILE__) . 'el-print-enhanced.php';
+        // Include the enhanced version using theme directory
+        if (file_exists($theme_dir . '/el-print-editor-enhanced.php')) {
+            require_once $theme_dir . '/el-print-editor-enhanced.php';
+        }
+        if (file_exists($theme_dir . '/class-el-pagination.php')) {
+            require_once $theme_dir . '/class-el-pagination.php';
+        }
+        if (file_exists($theme_dir . '/el-print-enhanced.php')) {
+            require_once $theme_dir . '/el-print-enhanced.php';
+        }
     } else {
         // Remove the original shortcode and replace with enhanced
         remove_shortcode('el_print_editor');
         
-        // Include enhanced files
-        require_once plugin_dir_path(__FILE__) . 'el-print-editor-enhanced.php';
-        require_once plugin_dir_path(__FILE__) . 'class-el-pagination.php';
-        require_once plugin_dir_path(__FILE__) . 'el-print-enhanced.php';
+        // Include enhanced files from theme directory
+        if (file_exists($theme_dir . '/el-print-editor-enhanced.php')) {
+            require_once $theme_dir . '/el-print-editor-enhanced.php';
+        }
+        if (file_exists($theme_dir . '/class-el-pagination.php')) {
+            require_once $theme_dir . '/class-el-pagination.php';
+        }
+        if (file_exists($theme_dir . '/el-print-enhanced.php')) {
+            require_once $theme_dir . '/el-print-enhanced.php';
+        }
     }
 }
-
 add_action('init', 'el_integrate_enhanced_print_editor', 20);
 
+/**
+ * Create print history table
+ */
 function el_create_print_history_table() {
     global $wpdb;
     
@@ -54,9 +169,15 @@ function el_create_print_history_table() {
 }
 register_activation_hook(__FILE__, 'el_create_print_history_table');
 
+/**
+ * Apply pagination filter
+ */
 add_filter('el_print_editor_html', function($html, $pdf_data) {
     // Check if paper-only mode
-    $is_paper_only = EL_Pagination_Handler::is_paper_only($pdf_data);
+    $is_paper_only = false;
+    if (class_exists('EL_Pagination_Handler')) {
+        $is_paper_only = EL_Pagination_Handler::is_paper_only($pdf_data);
+    }
     
     if ($is_paper_only) {
         // Apply pagination with page signatures
@@ -66,12 +187,18 @@ add_filter('el_print_editor_html', function($html, $pdf_data) {
             'signature_format' => get_option('el_signature_format', 'Client signature …………..……………………… Date ………… Page %d/%d')
         ];
         
-        $paginated_result = EL_Pagination_Handler::paginate_content($html, $pagination_options);
-        return $paginated_result['html'];
+        if (class_exists('EL_Pagination_Handler')) {
+            $paginated_result = EL_Pagination_Handler::paginate_content($html, $pagination_options);
+            return $paginated_result['html'];
+        }
     }
     
     return $html;
 }, 10, 2);
+
+/**
+ * Set enhanced defaults
+ */
 function el_set_enhanced_defaults() {
     // Default print settings
     add_option('el_default_paper_only', '0');
@@ -113,12 +240,17 @@ add_action('wp_footer', function() {
     }
 });
 
-// Add AJAX handler for Gravity Forms submission
+/**
+ * =================================================================
+ * AJAX FORM SUBMISSION HANDLER FOR TAB 1
+ * =================================================================
+ */
 add_action('wp_ajax_el_save_client_ajax', 'el_save_client_ajax');
 add_action('wp_ajax_nopriv_el_save_client_ajax', 'el_save_client_ajax');
-require_once get_stylesheet_directory() . '/inc/engagement-letters/class-el-core.php';
+
 function el_save_client_ajax() {
     // Verify nonce
+    check_ajax_referer('el_ajax_nonce', 'nonce');
     if (!check_ajax_referer('el_client_form_nonce', 'nonce', false)) {
         wp_send_json_error(['message' => 'Security check failed']);
     }
@@ -174,7 +306,7 @@ function el_save_client_ajax() {
     
     // Store all form data in session for PDF generation
     if (!session_id()) {
-        session_start();
+        // Session already started via init hook
     }
     $_SESSION['el_form_data'] = [
         'first_name' => $first_name,
@@ -296,7 +428,7 @@ function el_save_client_ajax() {
     
     // Store in session for next tabs
     if (!session_id()) {
-        session_start();
+        // Session already started via init hook
     }
     
     $_SESSION['el_current_client_id'] = $user_id;
@@ -1354,7 +1486,7 @@ function el_add_template_to_cart() {
     
     // Store in session
     if (!session_id()) {
-        session_start();
+        // Session already started via init hook
     }
     $_SESSION['el_selected_template'] = $product_id;
     
@@ -1407,10 +1539,7 @@ add_action('wp_ajax_el_no_client_start', 'el_handle_no_client_start');
 function el_handle_no_client_start() {
     check_ajax_referer('el_wizard_nonce', 'nonce');
     
-    // Start session if not already started
-    if (!session_id()) {
-        session_start();
-    }
+
     
     // Clear any client session data
     if (isset($_SESSION['el_client_data'])) {
@@ -1678,7 +1807,7 @@ function el_handle_start_no_client() {
     
     // Start session if not started
     if (!session_id()) {
-        session_start();
+        // Session already started via init hook
     }
     
     // Set flag for "no client" mode
@@ -2302,7 +2431,7 @@ function el_setup_engagement_cart() {
     
     // Store in session
     if (!session_id()) {
-        session_start();
+        // Session already started via init hook
     }
     $_SESSION['el_selected_product'] = $product_id;
     
@@ -3195,7 +3324,7 @@ function el_clear_session() {
     check_ajax_referer('el_nonce', 'nonce');
     
     if (!session_id()) {
-        session_start();
+        // Session already started via init hook
     }
     
     // Clear all EL session variables
@@ -3246,7 +3375,7 @@ function el_replace_merge_tags($content, $form_data = [], $pdf_data = []) {
     // Get form data from session if not provided
     if (empty($form_data)) {
         if (!session_id()) {
-            session_start();
+            // Session already started via init hook
         }
         $form_data = $_SESSION['el_form_data'] ?? [];
     }
@@ -3539,7 +3668,7 @@ function el_ajax_generate_pdf_preview() {
     check_ajax_referer('el_nonce', 'nonce');
     
     if (!session_id()) {
-        session_start();
+        // Session already started via init hook
     }
     
     // Gather client info from session
@@ -4510,7 +4639,7 @@ function el_handle_start_over() {
     
     // Clear session data
     if (!session_id()) {
-        session_start();
+        // Session already started via init hook
     }
     
     // Remove all EL-related session variables
@@ -5036,7 +5165,7 @@ add_shortcode('el_resume_banner', 'el_resume_banner_shortcode');
 
 function el_resume_banner_shortcode() {
     if (!session_id()) {
-        session_start();
+        // Session already started via init hook
     }
     
     // Check if there's a draft in progress
@@ -5349,7 +5478,7 @@ function el_handle_resume_draft() {
     
     // Restore to session
     if (!session_id()) {
-        session_start();
+        // Session already started via init hook
     }
     
     $_SESSION['el_engagement_letter_id'] = $engagement_id;
@@ -5394,7 +5523,7 @@ function el_handle_start_fresh_draft() {
     
     // Clear session
     if (!session_id()) {
-        session_start();
+        // Session already started via init hook
     }
     
     $engagement_id = isset($_SESSION['el_engagement_letter_id']) ? intval($_SESSION['el_engagement_letter_id']) : 0;
@@ -6107,7 +6236,7 @@ add_action('woocommerce_cart_item_restored', 'el_auto_save_cart_state');
 function el_auto_save_cart_state() {
     // Only auto-save if we're in an engagement letter session
     if (!session_id()) {
-        session_start();
+        // Session already started via init hook
     }
     
     if (isset($_SESSION['el_current_client_id']) || isset($_SESSION['el_engagement_letter_id'])) {
@@ -6171,7 +6300,7 @@ function el_ajax_load_print_editor() {
     check_ajax_referer('el_nonce', 'nonce');
     
     if (!session_id()) {
-        session_start();
+        // Session already started via init hook
     }
     
     // Get PDF reference from session
@@ -6207,7 +6336,7 @@ function el_ajax_save_edited_pdf() {
     check_ajax_referer('el_nonce', 'nonce');
     
     if (!session_id()) {
-        session_start();
+        // Session already started via init hook
     }
     
     $pdf_reference = isset($_POST['reference']) ? sanitize_text_field($_POST['reference']) : '';
