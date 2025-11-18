@@ -1,0 +1,1072 @@
+/**
+ * Engagement Letter Wizard - Complete Styles
+ * Studio Legale Metta
+ */
+
+/* =================================================================
+   VARIABLES & RESET
+   ================================================================= */
+
+:root {
+    --el-primary: #2563eb;
+    --el-primary-hover: #1d4ed8;
+    --el-secondary: #64748b;
+    --el-success: #10b981;
+    --el-warning: #f59e0b;
+    --el-error: #ef4444;
+    --el-border: #e2e8f0;
+    --el-bg-light: #f8fafc;
+    --el-text: #1e293b;
+    --el-text-muted: #64748b;
+    --el-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+    --el-shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+    --el-radius: 8px;
+    --el-transition: all 0.3s ease;
+}
+
+.el-wizard-container * {
+    box-sizing: border-box;
+}
+
+/* =================================================================
+   WIZARD CONTAINER & LAYOUT
+   ================================================================= */
+
+.el-wizard-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 40px 20px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    color: var(--el-text);
+    line-height: 1.6;
+}
+
+.el-wizard-header {
+    text-align: center;
+    margin-bottom: 48px;
+}
+
+.el-wizard-title {
+    font-size: 32px;
+    font-weight: 700;
+    margin-bottom: 12px;
+    color: var(--el-text);
+}
+
+.el-wizard-subtitle {
+    font-size: 18px;
+    color: var(--el-text-muted);
+    margin: 0;
+}
+
+/* =================================================================
+   PROGRESS BAR
+   ================================================================= */
+
+.el-progress-container {
+    margin-bottom: 40px;
+    background: white;
+    padding: 24px;
+    border-radius: var(--el-radius);
+    box-shadow: var(--el-shadow);
+}
+
+.el-progress-bar-outer {
+    width: 100%;
+    height: 8px;
+    background: var(--el-bg-light);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 12px;
+}
+
+.el-progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--el-primary) 0%, #3b82f6 100%);
+    border-radius: 4px;
+    width: 25%;
+    transition: width 0.4s ease;
+}
+
+.el-progress-text {
+    text-align: center;
+    font-size: 14px;
+    color: var(--el-text-muted);
+    font-weight: 500;
+}
+
+/* =================================================================
+   TAB NAVIGATION
+   ================================================================= */
+
+.el-tabs-nav {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 32px;
+    background: white;
+    padding: 16px;
+    border-radius: var(--el-radius);
+    box-shadow: var(--el-shadow);
+    overflow-x: auto;
+}
+
+.el-tab-nav {
+    flex: 1;
+    min-width: 120px;
+    padding: 12px 20px;
+    text-align: center;
+    background: var(--el-bg-light);
+    border: 2px solid transparent;
+    border-radius: var(--el-radius);
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--el-text-muted);
+    transition: var(--el-transition);
+    white-space: nowrap;
+}
+
+.el-tab-nav:hover {
+    background: #e2e8f0;
+    color: var(--el-text);
+}
+
+.el-tab-nav.active {
+    background: var(--el-primary);
+    color: white;
+    border-color: var(--el-primary);
+}
+
+.el-tab-nav.completed::after {
+    content: " ✓";
+    margin-left: 4px;
+}
+
+/* =================================================================
+   TAB CONTENT
+   ================================================================= */
+
+.el-tab-content {
+    display: none;
+    animation: fadeIn 0.4s ease;
+}
+
+.el-tab-content.active {
+    display: block;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.el-tab-inner {
+    background: white;
+    padding: 32px;
+    border-radius: var(--el-radius);
+    box-shadow: var(--el-shadow);
+    min-height: 400px;
+}
+
+.el-tab-header {
+    margin-bottom: 32px;
+    padding-bottom: 24px;
+    border-bottom: 2px solid var(--el-border);
+}
+
+.el-tab-title {
+    font-size: 24px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    color: var(--el-text);
+}
+
+.el-tab-description {
+    font-size: 16px;
+    color: var(--el-text-muted);
+    margin: 0;
+}
+
+/* =================================================================
+   TAB 2: TEMPLATE SELECTION
+   ================================================================= */
+
+.el-template-filters {
+    margin-bottom: 32px;
+}
+
+.el-filter-group {
+    margin-bottom: 16px;
+}
+
+.el-filter-label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: var(--el-text);
+    font-size: 14px;
+}
+
+#practice-area-filter {
+    width: 100%;
+    max-width: 400px;
+    padding: 12px 16px;
+    border: 2px solid var(--el-border);
+    border-radius: var(--el-radius);
+    font-size: 16px;
+    color: var(--el-text);
+    background: white;
+    cursor: pointer;
+    transition: var(--el-transition);
+}
+
+#practice-area-filter:focus {
+    outline: none;
+    border-color: var(--el-primary);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.el-template-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 24px;
+    margin-top: 24px;
+}
+
+.el-template-item {
+    background: white;
+    border: 2px solid var(--el-border);
+    border-radius: var(--el-radius);
+    padding: 24px;
+    transition: var(--el-transition);
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+}
+
+.el-template-item:hover {
+    border-color: var(--el-primary);
+    box-shadow: var(--el-shadow-lg);
+    transform: translateY(-4px);
+}
+
+.el-template-badge {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    background: var(--el-primary);
+    color: white;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.el-template-icon {
+    width: 64px;
+    height: 64px;
+    background: var(--el-bg-light);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    margin-bottom: 16px;
+}
+
+.el-template-name {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    color: var(--el-text);
+}
+
+.el-template-description {
+    font-size: 14px;
+    color: var(--el-text-muted);
+    margin-bottom: 16px;
+    line-height: 1.5;
+}
+
+.el-template-meta {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 16px;
+    font-size: 13px;
+    color: var(--el-text-muted);
+}
+
+.el-template-price {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--el-primary);
+    margin-bottom: 16px;
+}
+
+.el-template-price-label {
+    font-size: 12px;
+    color: var(--el-text-muted);
+    font-weight: 400;
+}
+
+.el-select-template-btn {
+    width: 100%;
+    padding: 12px 24px;
+    background: var(--el-primary);
+    color: white;
+    border: none;
+    border-radius: var(--el-radius);
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--el-transition);
+}
+
+.el-select-template-btn:hover {
+    background: var(--el-primary-hover);
+    transform: scale(1.02);
+}
+
+.el-select-template-btn:disabled {
+    background: var(--el-secondary);
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.el-no-templates-message {
+    text-align: center;
+    padding: 48px 24px;
+    color: var(--el-text-muted);
+    font-size: 16px;
+}
+
+/* =================================================================
+   TAB 3: CART EDITOR
+   ================================================================= */
+
+.el-cart-container {
+    margin-bottom: 32px;
+}
+
+.el-cart-empty {
+    text-align: center;
+    padding: 48px 24px;
+    color: var(--el-text-muted);
+}
+
+.el-cart-empty-icon {
+    font-size: 64px;
+    margin-bottom: 16px;
+    opacity: 0.3;
+}
+
+.el-cart-item {
+    background: var(--el-bg-light);
+    border: 2px solid var(--el-border);
+    border-radius: var(--el-radius);
+    padding: 20px;
+    margin-bottom: 16px;
+    transition: var(--el-transition);
+}
+
+.el-cart-item:hover {
+    border-color: var(--el-primary);
+}
+
+.el-cart-item-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+
+.el-cart-item-name {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--el-text);
+    margin-bottom: 4px;
+}
+
+.el-cart-item-type {
+    font-size: 13px;
+    color: var(--el-text-muted);
+    font-weight: 500;
+}
+
+.el-cart-item-price {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--el-primary);
+}
+
+.el-cart-item-body {
+    margin-bottom: 16px;
+}
+
+.el-cart-item-description {
+    font-size: 14px;
+    color: var(--el-text-muted);
+    margin-bottom: 16px;
+    line-height: 1.5;
+}
+
+/* Bundle Components */
+.el-bundle-components {
+    background: white;
+    border: 1px solid var(--el-border);
+    border-radius: var(--el-radius);
+    padding: 16px;
+    margin-top: 16px;
+}
+
+.el-bundle-title {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: var(--el-text);
+}
+
+.el-bundle-item {
+    display: flex;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--el-border);
+}
+
+.el-bundle-item:last-child {
+    border-bottom: none;
+}
+
+.el-bundle-component {
+    margin-right: 12px;
+    cursor: pointer;
+}
+
+.el-bundle-item-name {
+    flex: 1;
+    font-size: 14px;
+    color: var(--el-text);
+}
+
+.el-bundle-item-price {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--el-text-muted);
+}
+
+/* Cart Actions */
+.el-cart-item-actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--el-border);
+}
+
+.el-qty-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.el-qty-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--el-text);
+}
+
+.el-qty-update {
+    width: 80px;
+    padding: 8px 12px;
+    border: 2px solid var(--el-border);
+    border-radius: var(--el-radius);
+    font-size: 16px;
+    text-align: center;
+}
+
+.el-qty-update:focus {
+    outline: none;
+    border-color: var(--el-primary);
+}
+
+.el-remove-item {
+    margin-left: auto;
+    padding: 8px 16px;
+    background: transparent;
+    color: var(--el-error);
+    border: 2px solid var(--el-error);
+    border-radius: var(--el-radius);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--el-transition);
+}
+
+.el-remove-item:hover {
+    background: var(--el-error);
+    color: white;
+}
+
+/* Cart Summary */
+.el-cart-summary {
+    background: var(--el-bg-light);
+    border: 2px solid var(--el-border);
+    border-radius: var(--el-radius);
+    padding: 24px;
+    margin-top: 32px;
+}
+
+.el-cart-summary-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--el-border);
+}
+
+.el-cart-summary-row:last-child {
+    border-bottom: none;
+    padding-top: 16px;
+    margin-top: 8px;
+    border-top: 2px solid var(--el-border);
+}
+
+.el-cart-summary-label {
+    font-size: 16px;
+    color: var(--el-text);
+}
+
+.el-cart-summary-value {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--el-text);
+}
+
+.el-cart-total-label {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--el-text);
+}
+
+.el-cart-total {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--el-primary);
+}
+
+/* =================================================================
+   TAB 4: PDF PREVIEW
+   ================================================================= */
+
+.el-pdf-preview-container {
+    background: var(--el-bg-light);
+    border: 2px solid var(--el-border);
+    border-radius: var(--el-radius);
+    padding: 24px;
+    min-height: 600px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#el-pdf-frame {
+    width: 100%;
+    border: none;
+    border-radius: var(--el-radius);
+    background: white;
+    box-shadow: var(--el-shadow-lg);
+}
+
+.el-pdf-loading {
+    text-align: center;
+    padding: 48px 24px;
+}
+
+.el-pdf-loading .spinner {
+    width: 48px;
+    height: 48px;
+    border: 4px solid var(--el-border);
+    border-top-color: var(--el-primary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 24px;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.el-pdf-loading p {
+    color: var(--el-text-muted);
+    font-size: 16px;
+    margin: 8px 0;
+}
+
+.el-pdf-loading .small {
+    font-size: 14px;
+}
+
+.el-error-message {
+    text-align: center;
+    padding: 48px 24px;
+}
+
+.el-error-message p {
+    color: var(--el-error);
+    font-size: 16px;
+    margin-bottom: 24px;
+}
+
+.el-retry-pdf {
+    padding: 12px 32px;
+    background: var(--el-primary);
+    color: white;
+    border: none;
+    border-radius: var(--el-radius);
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--el-transition);
+}
+
+.el-retry-pdf:hover {
+    background: var(--el-primary-hover);
+}
+
+.el-pdf-actions {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    margin-top: 32px;
+    flex-wrap: wrap;
+}
+
+/* =================================================================
+   BUTTONS
+   ================================================================= */
+
+.el-btn {
+    padding: 12px 32px;
+    border: none;
+    border-radius: var(--el-radius);
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--el-transition);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    text-decoration: none;
+}
+
+.el-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.el-btn-primary {
+    background: var(--el-primary);
+    color: white;
+}
+
+.el-btn-primary:hover:not(:disabled) {
+    background: var(--el-primary-hover);
+    transform: translateY(-2px);
+    box-shadow: var(--el-shadow-lg);
+}
+
+.el-btn-secondary {
+    background: var(--el-secondary);
+    color: white;
+}
+
+.el-btn-secondary:hover:not(:disabled) {
+    background: #475569;
+    transform: translateY(-2px);
+}
+
+.el-btn-outline {
+    background: transparent;
+    color: var(--el-primary);
+    border: 2px solid var(--el-primary);
+}
+
+.el-btn-outline:hover:not(:disabled) {
+    background: var(--el-primary);
+    color: white;
+}
+
+.el-btn-success {
+    background: var(--el-success);
+    color: white;
+}
+
+.el-btn-success:hover:not(:disabled) {
+    background: #059669;
+    transform: translateY(-2px);
+}
+
+.el-btn-large {
+    padding: 16px 40px;
+    font-size: 18px;
+}
+
+.el-btn-full {
+    width: 100%;
+    justify-content: center;
+}
+
+/* =================================================================
+   NOTIFICATIONS
+   ================================================================= */
+
+.el-notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 16px 24px;
+    border-radius: var(--el-radius);
+    box-shadow: var(--el-shadow-lg);
+    z-index: 99999;
+    opacity: 0;
+    transform: translateX(400px);
+    transition: all 0.3s ease;
+    max-width: 400px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 15px;
+    font-weight: 500;
+}
+
+.el-notification.show {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.el-notification-success {
+    background: var(--el-success);
+    color: white;
+}
+
+.el-notification-error {
+    background: var(--el-error);
+    color: white;
+}
+
+.el-notification-warning {
+    background: var(--el-warning);
+    color: white;
+}
+
+.el-notification-info {
+    background: var(--el-primary);
+    color: white;
+}
+
+.el-close-notification {
+    cursor: pointer;
+    margin-left: auto;
+    font-size: 24px;
+    line-height: 1;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+
+.el-close-notification:hover {
+    opacity: 1;
+}
+
+/* =================================================================
+   LOADING STATES
+   ================================================================= */
+
+.el-loading {
+    text-align: center;
+    padding: 48px 24px;
+    color: var(--el-text-muted);
+    font-size: 16px;
+}
+
+.el-searching {
+    padding: 8px 16px;
+    background: #dbeafe;
+    border: 1px solid #93c5fd;
+    color: #1e40af;
+    border-radius: var(--el-radius);
+    font-size: 14px;
+    display: inline-block;
+    margin-top: 12px;
+}
+
+.el-searching::before {
+    content: "🔍 ";
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
+}
+
+/* =================================================================
+   FORM ELEMENTS
+   ================================================================= */
+
+.el-form-group {
+    margin-bottom: 24px;
+}
+
+.el-form-label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: var(--el-text);
+    font-size: 14px;
+}
+
+.el-form-input,
+.el-form-select,
+.el-form-textarea {
+    width: 100%;
+    padding: 12px 16px;
+    border: 2px solid var(--el-border);
+    border-radius: var(--el-radius);
+    font-size: 16px;
+    color: var(--el-text);
+    background: white;
+    transition: var(--el-transition);
+}
+
+.el-form-input:focus,
+.el-form-select:focus,
+.el-form-textarea:focus {
+    outline: none;
+    border-color: var(--el-primary);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.el-form-textarea {
+    min-height: 120px;
+    resize: vertical;
+}
+
+.el-form-help {
+    font-size: 13px;
+    color: var(--el-text-muted);
+    margin-top: 6px;
+}
+
+/* =================================================================
+   RESPONSIVE DESIGN
+   ================================================================= */
+
+@media (max-width: 1024px) {
+    .el-template-grid {
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 20px;
+    }
+}
+
+@media (max-width: 768px) {
+    .el-wizard-container {
+        padding: 24px 16px;
+    }
+
+    .el-wizard-title {
+        font-size: 24px;
+    }
+
+    .el-wizard-subtitle {
+        font-size: 16px;
+    }
+
+    .el-tabs-nav {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .el-tab-nav {
+        font-size: 13px;
+        padding: 10px 16px;
+        min-width: 100px;
+    }
+
+    .el-tab-inner {
+        padding: 24px 20px;
+    }
+
+    .el-tab-title {
+        font-size: 20px;
+    }
+
+    .el-template-grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+
+    .el-cart-item {
+        padding: 16px;
+    }
+
+    .el-cart-item-header {
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .el-cart-item-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .el-qty-wrapper {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .el-remove-item {
+        margin-left: 0;
+        width: 100%;
+    }
+
+    .el-pdf-actions {
+        flex-direction: column;
+    }
+
+    .el-btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .el-notification {
+        right: 10px;
+        left: 10px;
+        max-width: none;
+    }
+}
+
+@media (max-width: 480px) {
+    .el-wizard-container {
+        padding: 20px 12px;
+    }
+
+    .el-wizard-title {
+        font-size: 20px;
+    }
+
+    .el-tab-inner {
+        padding: 20px 16px;
+    }
+
+    .el-cart-summary {
+        padding: 16px;
+    }
+
+    .el-cart-total {
+        font-size: 24px;
+    }
+}
+
+/* =================================================================
+   UTILITIES
+   ================================================================= */
+
+.el-text-center {
+    text-align: center;
+}
+
+.el-text-muted {
+    color: var(--el-text-muted);
+}
+
+.el-mt-1 {
+    margin-top: 8px;
+}
+
+.el-mt-2 {
+    margin-top: 16px;
+}
+
+.el-mt-3 {
+    margin-top: 24px;
+}
+
+.el-mt-4 {
+    margin-top: 32px;
+}
+
+.el-mb-1 {
+    margin-bottom: 8px;
+}
+
+.el-mb-2 {
+    margin-bottom: 16px;
+}
+
+.el-mb-3 {
+    margin-bottom: 24px;
+}
+
+.el-mb-4 {
+    margin-bottom: 32px;
+}
+
+.el-p-2 {
+    padding: 16px;
+}
+
+.el-p-3 {
+    padding: 24px;
+}
+
+.el-p-4 {
+    padding: 32px;
+}
+
+.el-hidden {
+    display: none !important;
+}
+
+.el-visible {
+    display: block !important;
+}
+
+/* =================================================================
+   PRINT STYLES
+   ================================================================= */
+
+@media print {
+
+    .el-wizard-header,
+    .el-progress-container,
+    .el-tabs-nav,
+    .el-tab-nav,
+    .el-notification,
+    .el-btn,
+    .el-cart-item-actions {
+        display: none !important;
+    }
+
+    .el-tab-content {
+        display: block !important;
+    }
+
+    .el-wizard-container {
+        max-width: 100%;
+    }
+}

@@ -1,0 +1,768 @@
+/**
+ * Engagement Letter Wizard Styles
+ * Studio Legale Metta
+ */
+
+/* =================================================================
+   WIZARD CONTAINER & LAYOUT
+   ================================================================= */
+
+.el-wizard-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+/* Progress Bar */
+.el-progress-wrapper {
+    margin-bottom: 40px;
+    background: #f5f5f7;
+    border-radius: 10px;
+    padding: 20px;
+}
+
+.el-progress-bar-container {
+    background: #e0e0e0;
+    border-radius: 20px;
+    height: 8px;
+    overflow: hidden;
+    margin-bottom: 10px;
+}
+
+.el-progress-bar {
+    background: linear-gradient(90deg, #2563eb 0%, #3b82f6 100%);
+    height: 100%;
+    border-radius: 20px;
+    transition: width 0.5s ease;
+}
+
+.el-progress-text {
+    text-align: center;
+    color: #6b7280;
+    font-size: 14px;
+}
+
+/* Tab Navigation */
+.el-tab-navigation {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 30px;
+    border-bottom: 2px solid #e5e7eb;
+    padding-bottom: 0;
+}
+
+.el-tab-nav {
+    padding: 12px 24px;
+    background: transparent;
+    border: none;
+    color: #6b7280;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border-bottom: 3px solid transparent;
+    margin-bottom: -2px;
+}
+
+.el-tab-nav:hover {
+    color: #374151;
+    background: #f9fafb;
+}
+
+.el-tab-nav.active {
+    color: #2563eb;
+    border-bottom-color: #2563eb;
+    background: white;
+}
+
+.el-tab-nav.completed {
+    color: #10b981;
+}
+
+.el-tab-nav.completed::after {
+    content: "✓";
+    margin-left: 6px;
+    font-size: 12px;
+}
+
+/* Tab Content */
+.el-tab-content {
+    display: none;
+    animation: fadeIn 0.3s ease;
+}
+
+.el-tab-content.active {
+    display: block;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* =================================================================
+   TAB 2: TEMPLATE SELECTION
+   ================================================================= */
+
+/* Practice Area Filter */
+.el-filter-section {
+    margin-bottom: 30px;
+    padding: 20px;
+    background: #f9fafb;
+    border-radius: 8px;
+}
+
+.el-filter-label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #374151;
+}
+
+#practice-area-filter {
+    width: 100%;
+    max-width: 300px;
+    padding: 10px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 16px;
+    background: white;
+    cursor: pointer;
+}
+
+/* Template Grid */
+#el-template-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 24px;
+    margin-top: 20px;
+}
+
+.el-template-item {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 20px;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.el-template-item:hover {
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+    transform: translateY(-2px);
+    border-color: #3b82f6;
+}
+
+.el-template-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #111827;
+    margin-bottom: 8px;
+}
+
+.el-template-practice {
+    display: inline-block;
+    padding: 4px 10px;
+    background: #eff6ff;
+    color: #2563eb;
+    font-size: 12px;
+    border-radius: 4px;
+    margin-bottom: 12px;
+}
+
+.el-template-description {
+    color: #6b7280;
+    font-size: 14px;
+    line-height: 1.6;
+    margin-bottom: 16px;
+}
+
+.el-template-fee {
+    font-size: 20px;
+    font-weight: 700;
+    color: #059669;
+    margin-bottom: 16px;
+}
+
+.el-template-fee-label {
+    font-size: 12px;
+    color: #6b7280;
+    font-weight: 400;
+}
+
+.el-select-template-btn {
+    width: 100%;
+    padding: 12px 20px;
+    background: #2563eb;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.el-select-template-btn:hover {
+    background: #1d4ed8;
+    transform: translateY(-1px);
+}
+
+.el-select-template-btn:disabled {
+    background: #9ca3af;
+    cursor: not-allowed;
+}
+
+/* No templates message */
+#el-no-templates-message {
+    display: none;
+    padding: 40px;
+    text-align: center;
+    color: #6b7280;
+    font-style: italic;
+}
+
+/* =================================================================
+   TAB 3: CART EDITOR
+   ================================================================= */
+
+#el-cart-container {
+    background: white;
+    border-radius: 8px;
+    padding: 24px;
+    border: 1px solid #e5e7eb;
+}
+
+.el-cart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 2px solid #e5e7eb;
+}
+
+.el-cart-title {
+    font-size: 20px;
+    font-weight: 600;
+    color: #111827;
+}
+
+.el-cart-count {
+    background: #eff6ff;
+    color: #2563eb;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+/* Cart Items */
+.el-cart-item {
+    padding: 20px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    background: #fafafa;
+    transition: all 0.3s ease;
+}
+
+.el-cart-item:hover {
+    background: white;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.el-cart-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: start;
+    margin-bottom: 12px;
+}
+
+.el-cart-item-name {
+    font-size: 16px;
+    font-weight: 600;
+    color: #111827;
+}
+
+.el-cart-item-price {
+    font-size: 18px;
+    font-weight: 600;
+    color: #059669;
+}
+
+.el-cart-item-type {
+    display: inline-block;
+    padding: 2px 8px;
+    background: #f3f4f6;
+    color: #6b7280;
+    font-size: 11px;
+    border-radius: 4px;
+    margin-left: 8px;
+}
+
+/* Bundle Items */
+.el-bundled-items {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid #e5e7eb;
+}
+
+.el-bundled-items-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #4b5563;
+    margin-bottom: 12px;
+}
+
+.el-bundled-item {
+    display: flex;
+    align-items: center;
+    padding: 8px;
+    margin-bottom: 8px;
+    background: white;
+    border-radius: 4px;
+}
+
+.el-bundle-component {
+    margin-right: 12px;
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+
+.el-bundle-component:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.el-bundled-item-name {
+    flex: 1;
+    font-size: 14px;
+    color: #374151;
+}
+
+.el-bundled-item-price {
+    font-size: 14px;
+    color: #059669;
+    font-weight: 600;
+}
+
+/* Quantity Controls */
+.el-cart-item-controls {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-top: 12px;
+}
+
+.el-qty-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.el-qty-label {
+    font-size: 14px;
+    color: #6b7280;
+}
+
+.el-qty-update {
+    width: 60px;
+    padding: 6px;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    text-align: center;
+    font-size: 14px;
+}
+
+.el-remove-item {
+    color: #ef4444;
+    font-size: 14px;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.el-remove-item:hover {
+    text-decoration: underline;
+}
+
+/* Cart Totals */
+.el-cart-totals {
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 2px solid #e5e7eb;
+}
+
+.el-cart-total-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.el-cart-total-label {
+    font-size: 16px;
+    color: #6b7280;
+}
+
+.el-cart-total {
+    font-size: 24px;
+    font-weight: 700;
+    color: #111827;
+}
+
+/* Preview PDF Button */
+#el-preview-pdf-btn {
+    margin-top: 24px;
+    padding: 14px 32px;
+    background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+#el-preview-pdf-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px rgba(16, 185, 129, 0.3);
+}
+
+/* =================================================================
+   TAB 4: PDF PREVIEW
+   ================================================================= */
+
+#el-pdf-preview-container {
+    background: white;
+    border-radius: 8px;
+    padding: 24px;
+    min-height: 600px;
+    position: relative;
+}
+
+/* PDF Loading State */
+.el-pdf-loading {
+    text-align: center;
+    padding: 60px 20px;
+}
+
+.el-pdf-loading .spinner {
+    width: 50px;
+    height: 50px;
+    border: 3px solid #e5e7eb;
+    border-top-color: #2563eb;
+    border-radius: 50%;
+    margin: 0 auto 20px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.el-pdf-loading p {
+    color: #6b7280;
+    margin-bottom: 8px;
+}
+
+.el-pdf-loading p.small {
+    font-size: 12px;
+    color: #9ca3af;
+}
+
+/* PDF Frame */
+#el-pdf-frame {
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+/* PDF Action Buttons */
+#el-pdf-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    margin-top: 24px;
+    padding-top: 24px;
+    border-top: 2px solid #e5e7eb;
+}
+
+.el-btn {
+    padding: 12px 24px;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: none;
+}
+
+.el-btn-primary {
+    background: #2563eb;
+    color: white;
+}
+
+.el-btn-primary:hover {
+    background: #1d4ed8;
+    transform: translateY(-1px);
+}
+
+.el-btn-secondary {
+    background: #6b7280;
+    color: white;
+}
+
+.el-btn-secondary:hover {
+    background: #4b5563;
+}
+
+.el-btn-outline {
+    background: white;
+    color: #374151;
+    border: 2px solid #d1d5db;
+}
+
+.el-btn-outline:hover {
+    background: #f9fafb;
+}
+
+/* Error Message */
+.el-error-message {
+    text-align: center;
+    padding: 40px;
+    color: #ef4444;
+}
+
+.el-retry-pdf {
+    margin-top: 16px;
+    padding: 10px 20px;
+    background: #ef4444;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.el-retry-pdf:hover {
+    background: #dc2626;
+}
+
+/* =================================================================
+   NOTIFICATIONS
+   ================================================================= */
+
+.el-notification {
+    position: fixed;
+    top: 20px;
+    right: -400px;
+    max-width: 350px;
+    padding: 16px 20px;
+    border-radius: 8px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+    transition: right 0.3s ease;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.el-notification.show {
+    right: 20px;
+}
+
+.el-notification-success {
+    background: #10b981;
+    color: white;
+}
+
+.el-notification-error {
+    background: #ef4444;
+    color: white;
+}
+
+.el-notification-warning {
+    background: #f59e0b;
+    color: white;
+}
+
+.el-notification-info {
+    background: #3b82f6;
+    color: white;
+}
+
+.el-close-notification {
+    margin-left: 16px;
+    cursor: pointer;
+    font-size: 20px;
+    line-height: 1;
+    opacity: 0.8;
+}
+
+.el-close-notification:hover {
+    opacity: 1;
+}
+
+/* =================================================================
+   LOADING STATES
+   ================================================================= */
+
+.el-loading {
+    padding: 40px;
+    text-align: center;
+    color: #6b7280;
+    font-style: italic;
+}
+
+.el-loading::before {
+    content: "";
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 2px solid #e5e7eb;
+    border-top-color: #2563eb;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-right: 10px;
+    vertical-align: middle;
+}
+
+/* =================================================================
+   RESPONSIVE DESIGN
+   ================================================================= */
+
+@media (max-width: 768px) {
+    .el-wizard-container {
+        padding: 10px;
+    }
+
+    .el-tab-navigation {
+        flex-wrap: wrap;
+    }
+
+    .el-tab-nav {
+        flex: 1;
+        min-width: 120px;
+        padding: 10px 12px;
+        font-size: 14px;
+    }
+
+    #el-template-grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+
+    .el-cart-item-header {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    #el-pdf-actions {
+        flex-direction: column;
+    }
+
+    .el-btn {
+        width: 100%;
+    }
+
+    .el-notification {
+        left: 10px;
+        right: 10px;
+        max-width: none;
+    }
+
+    .el-notification.show {
+        right: 10px;
+    }
+}
+
+@media (max-width: 480px) {
+    .el-tab-navigation {
+        gap: 5px;
+    }
+
+    .el-tab-nav {
+        padding: 8px;
+        font-size: 12px;
+    }
+
+    .el-cart-item-controls {
+        flex-direction: column;
+        align-items: start;
+    }
+}
+
+/* =================================================================
+   PRINT STYLES (for PDF generation)
+   ================================================================= */
+
+@media print {
+
+    .el-tab-navigation,
+    .el-progress-wrapper,
+    #el-pdf-actions,
+    .el-notification {
+        display: none !important;
+    }
+
+    .el-wizard-container {
+        max-width: 100%;
+        padding: 0;
+    }
+
+    #el-pdf-frame {
+        border: none;
+        box-shadow: none;
+        height: auto;
+    }
+}
+
+/* =================================================================
+   UTILITY CLASSES
+   ================================================================= */
+
+.el-text-center {
+    text-align: center;
+}
+
+.el-text-right {
+    text-align: right;
+}
+
+.el-mt-20 {
+    margin-top: 20px;
+}
+
+.el-mb-20 {
+    margin-bottom: 20px;
+}
+
+.el-hidden {
+    display: none;
+}
+
+.el-flex {
+    display: flex;
+}
+
+.el-flex-center {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.el-gap-10 {
+    gap: 10px;
+}
+
+.el-gap-20 {
+    gap: 20px;
+}
