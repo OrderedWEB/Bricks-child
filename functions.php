@@ -275,12 +275,22 @@ add_action('wp_footer', function() {
 add_action('wp_ajax_el_save_client_ajax', 'el_save_client_ajax');
 add_action('wp_ajax_nopriv_el_save_client_ajax', 'el_save_client_ajax');
 
+
 function el_save_client_ajax() {
-    // Verify nonce
-    check_ajax_referer('el_ajax_nonce', 'nonce');
-    if (!check_ajax_referer('el_client_form_nonce', 'nonce', false)) {
+    // Debug logging
+    error_log('EL SAVE: Starting save process');
+    error_log('EL SAVE: POST data: ' . print_r($_POST, true));
+    
+    // Single nonce verification - using el_ajax_nonce consistently
+    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'el_ajax_nonce')) {
+        error_log('EL SAVE: Nonce verification FAILED');
+        error_log('EL SAVE: Expected nonce action: el_ajax_nonce');
+        error_log('EL SAVE: Received nonce: ' . ($_POST['nonce'] ?? 'none'));
         wp_send_json_error(['message' => 'Security check failed']);
+        return;
     }
+    
+    error_log('EL SAVE: Nonce verification PASSED');
     
     // Get form data
     $form_data = $_POST['form_data'] ?? [];
@@ -301,44 +311,28 @@ function el_save_client_ajax() {
     $city = sanitize_text_field($form_data['input_6_3'] ?? '');
     $state = sanitize_text_field($form_data['input_6_4'] ?? '');
     $zip = sanitize_text_field($form_data['input_6_5'] ?? '');
-    $country = sanitize_text_field($form_data['input_6_6'] ?? '');
+    $country = sanitize_text_field($form_data['input_6_6'] ?? 'United States');
     
-    // Co-signer fields
-    $add_cosigner = isset($form_data['input_8_1']) && $form_data['input_8_1'] === 'Yes';
-    $cosigner_first_name = sanitize_text_field($form_data['input_9_3'] ?? '');
-    $cosigner_last_name = sanitize_text_field($form_data['input_9_6'] ?? '');
+    // Combine name
+    $client_name = trim($first_name . ' ' . $last_name);
     
-    // Notes
-    $note = sanitize_textarea_field($form_data['input_7'] ?? '');
-    
-    // If single name field, split it
-    if (empty($last_name) && strpos($first_name, ' ') !== false) {
-        $name_parts = explode(' ', $first_name);
-        $first_name = array_shift($name_parts);
-        $last_name = implode(' ', $name_parts);
+    if (empty($client_name) || empty($email)) {
+        error_log('EL SAVE: Missing required fields - Name: ' . $client_name . ', Email: ' . $email);
+        wp_send_json_error(['message' => 'Name and email are required']);
+        return;
     }
     
-    // Build full name and address
-    $full_name = trim($first_name . ' ' . $last_name);
-    $cosigner_full_name = $add_cosigner ? trim($cosigner_first_name . ' ' . $cosigner_last_name) : '';
-    
-    // Build formatted address
-    $address_parts = array_filter([$street_address, $city, $state, $zip, $country]);
-    $full_address = implode(', ', $address_parts);
-    
-    // Validate required fields
-    if (empty($email)) {
-        wp_send_json_error(['message' => 'Email is required']);
-    }
-    
-    // Store all form data in session for PDF generation
+    // Start session if not already started
     if (!session_id()) {
-        // Session already started via init hook
+        session_start();
     }
+    
+    // Save to session
+    $_SESSION['el_client_name'] = $client_name;
+    $_SESSION['el_client_email'] = $email;
     $_SESSION['el_form_data'] = [
         'first_name' => $first_name,
         'last_name' => $last_name,
-        'full_name' => $full_name,
         'email' => $email,
         'phone' => $phone,
         'street_address' => $street_address,
@@ -346,167 +340,57 @@ function el_save_client_ajax() {
         'state' => $state,
         'zip' => $zip,
         'country' => $country,
-        'full_address' => $full_address,
-        'add_cosigner' => $add_cosigner,
-        'cosigner_first_name' => $cosigner_first_name,
-        'cosigner_last_name' => $cosigner_last_name,
-        'cosigner_full_name' => $cosigner_full_name,
-        'notes' => $note
+        'full_name' => $client_name,
+        'full_address' => trim($street_address . ', ' . $city . ', ' . $state . ' ' . $zip . ', ' . $country, ', ')
     ];
     
-    // Check if user exists
-    $existing_user = get_user_by('email', $email);
-    $user_id = null;
-    $scenario = '';
+    // Check if client exists
+    $existing_client_id = 0;
+    $clients = get_posts([
+        'post_type' => 'el_client',
+        'meta_key' => '_el_client_email',
+        'meta_value' => $email,
+        'posts_per_page' => 1
+    ]);
     
-    if ($existing_user) {
-        // User exists - use their ID
-        $user_id = $existing_user->ID;
+    if (!empty($clients)) {
+        $existing_client_id = $clients[0]->ID;
+        $_SESSION['el_current_client_id'] = $existing_client_id;
         
-        // Check if they're a WooCommerce customer
-        $is_woo_customer = user_can($user_id, 'customer') || 
-                          get_user_meta($user_id, 'paying_customer', true) ||
-                          wc_customer_bought_product('', $user_id, 0);
-        
-        if ($is_woo_customer) {
-            $scenario = 'existing_woo_customer';
-            
-            // Update their info with any new data from form
-            if ($first_name) update_user_meta($user_id, 'billing_first_name', $first_name);
-            if ($last_name) update_user_meta($user_id, 'billing_last_name', $last_name);
-            if ($phone) update_user_meta($user_id, 'billing_phone', $phone);
-            if ($street_address) update_user_meta($user_id, 'billing_address_1', $street_address);
-            if ($city) update_user_meta($user_id, 'billing_city', $city);
-            if ($state) update_user_meta($user_id, 'billing_state', $state);
-            if ($zip) update_user_meta($user_id, 'billing_postcode', $zip);
-            if ($country) update_user_meta($user_id, 'billing_country', $country);
-            
-        } else {
-            $scenario = 'converted_to_woo';
-            
-            // Convert to WooCommerce customer
-            $existing_user->add_role('customer');
-            
-            // Set up WooCommerce customer meta
-            update_user_meta($user_id, 'first_name', $first_name);
-            update_user_meta($user_id, 'last_name', $last_name);
-            update_user_meta($user_id, 'billing_first_name', $first_name);
-            update_user_meta($user_id, 'billing_last_name', $last_name);
-            update_user_meta($user_id, 'billing_email', $email);
-            update_user_meta($user_id, 'billing_phone', $phone);
-            update_user_meta($user_id, 'billing_address_1', $street_address);
-            update_user_meta($user_id, 'billing_city', $city);
-            update_user_meta($user_id, 'billing_state', $state);
-            update_user_meta($user_id, 'billing_postcode', $zip);
-            update_user_meta($user_id, 'billing_country', $country);
-            update_user_meta($user_id, 'converted_from_zoho', date('Y-m-d H:i:s'));
-        }
-        
+        // Update existing client
+        wp_update_post([
+            'ID' => $existing_client_id,
+            'post_title' => $client_name
+        ]);
     } else {
-        // Brand new user - create them
-        $scenario = 'new_customer';
+        // Create new client
+        $client_id = wp_insert_post([
+            'post_title' => $client_name,
+            'post_type' => 'el_client',
+            'post_status' => 'publish'
+        ]);
         
-        // Create username from name
-        $username = sanitize_user(strtolower($first_name . '.' . $last_name));
-        $username = str_replace(' ', '', $username);
-        
-        // Make username unique if needed
-        $original_username = $username;
-        $counter = 1;
-        while (username_exists($username)) {
-            $username = $original_username . $counter;
-            $counter++;
-        }
-        
-        // Create new WooCommerce customer
-        $user_id = wc_create_new_customer($email, $username, wp_generate_password());
-        
-        if (!is_wp_error($user_id)) {
-            // Successfully created - set all meta
-            update_user_meta($user_id, 'first_name', $first_name);
-            update_user_meta($user_id, 'last_name', $last_name);
-            update_user_meta($user_id, 'billing_first_name', $first_name);
-            update_user_meta($user_id, 'billing_last_name', $last_name);
-            update_user_meta($user_id, 'billing_email', $email);
-            update_user_meta($user_id, 'billing_phone', $phone);
-            update_user_meta($user_id, 'billing_address_1', $street_address);
-            update_user_meta($user_id, 'billing_city', $city);
-            update_user_meta($user_id, 'billing_state', $state);
-            update_user_meta($user_id, 'billing_postcode', $zip);
-            update_user_meta($user_id, 'billing_country', $country);
-            update_user_meta($user_id, 'created_from_el_form', date('Y-m-d H:i:s'));
-        } else {
-            wp_send_json_error(['message' => 'Failed to create customer account']);
+        if (!is_wp_error($client_id)) {
+            $_SESSION['el_current_client_id'] = $client_id;
+            $existing_client_id = $client_id;
         }
     }
     
-    // Store co-signer info if provided
-    if ($add_cosigner && $user_id) {
-        update_user_meta($user_id, 'el_has_cosigner', true);
-        update_user_meta($user_id, 'el_cosigner_first_name', $cosigner_first_name);
-        update_user_meta($user_id, 'el_cosigner_last_name', $cosigner_last_name);
-        update_user_meta($user_id, 'el_cosigner_full_name', $cosigner_full_name);
+    // Update client meta
+    if ($existing_client_id) {
+        update_post_meta($existing_client_id, '_el_client_email', $email);
+        update_post_meta($existing_client_id, '_el_client_phone', $phone);
+        update_post_meta($existing_client_id, '_el_client_address', $_SESSION['el_form_data']['full_address']);
+        update_post_meta($existing_client_id, '_el_form_data', $_SESSION['el_form_data']);
     }
     
-    // Store note if provided
-    if ($note && $user_id) {
-        update_user_meta($user_id, 'customer_note', $note);
-    }
+    error_log('EL SAVE: Client saved successfully - ID: ' . $existing_client_id);
     
-    // Store in session for next tabs
-    if (!session_id()) {
-        // Session already started via init hook
-    }
-    
-    $_SESSION['el_current_client_id'] = $user_id;
-    $_SESSION['el_client_name'] = trim($first_name . ' ' . $last_name);
-    $_SESSION['el_client_email'] = $email;
-    $_SESSION['el_client_scenario'] = $scenario;
-    
-    // Create or update engagement letter
-    $engagement_letter_id = isset($_SESSION['el_engagement_letter_id']) ? intval($_SESSION['el_engagement_letter_id']) : 0;
-    
-    // Check if this is a "skip client" scenario (blank template)
-    $skip_client = isset($_POST['skip_client']) && $_POST['skip_client'] === 'true';
-    
-    if ($skip_client) {
-        // Blank template - no client
-        $title = 'Blank Template - ' . date('d/m/Y H:i');
-        $client_id_for_el = 0;
-    } else {
-        // Regular engagement letter with client
-        $title = 'Engagement Letter - ' . $full_name;
-        $client_id_for_el = $user_id;
-    }
-    
-    if ($engagement_letter_id && get_post_type($engagement_letter_id) === 'engagement_letter') {
-        // Update existing
-        el_update_engagement_letter($engagement_letter_id, array(
-            'form_data' => $_SESSION['el_form_data'],
-        ));
-    } else {
-        // Create new
-        $engagement_letter_id = el_create_engagement_letter(array(
-            'title'     => $title,
-            'client_id' => $client_id_for_el,
-            'lawyer_id' => get_current_user_id(),
-            'form_data' => $_SESSION['el_form_data'],
-            'status'    => 'draft',
-        ));
-        
-        if ($engagement_letter_id) {
-            $_SESSION['el_engagement_letter_id'] = $engagement_letter_id;
-        }
-    }
-    
-    // Return success with data
     wp_send_json_success([
-        'message' => 'Client details saved successfully',
-        'client_id' => $user_id,
-        'client_name' => trim($first_name . ' ' . $last_name),
-        'scenario' => $scenario,
-        'next_tab' => 2,
-        'engagement_letter_id' => $engagement_letter_id,
+        'message' => 'Client information saved successfully',
+        'client_id' => $existing_client_id,
+        'client_name' => $client_name,
+        'next_tab' => 2
     ]);
 }
 
@@ -1975,63 +1859,91 @@ function el_handle_start_no_client() {
         'engagement_id' => $engagement_id
     ]);
 }
-// ============================================================
-// AJAX HANDLER: Search Existing Clients
-// ============================================================
+/**
+ * AJAX: Search existing clients with complete billing details
+ */
 add_action('wp_ajax_search_existing_client', 'el_search_existing_client');
 add_action('wp_ajax_nopriv_search_existing_client', 'el_search_existing_client');
 
 function el_search_existing_client() {
-    // Security check
-    if (!check_ajax_referer('el_client_search_nonce', 'nonce', false)) {
-        wp_send_json_error(['message' => 'Security check failed']);
-    }
-
+    check_ajax_referer('el_client_search_nonce', 'nonce');
+    
     $search_term = sanitize_text_field($_POST['search_term'] ?? '');
-    $search_type = sanitize_text_field($_POST['search_type'] ?? 'name');
+    $search_type = sanitize_text_field($_POST['search_type'] ?? 'email');
     
     if (strlen($search_term) < 2) {
         wp_send_json_success([]);
     }
     
-    $args = [
-        'number' => 10,
-        'orderby' => 'display_name',
-        'order' => 'ASC'
-    ];
+    global $wpdb;
+    $clients = [];
     
     if ($search_type === 'email') {
-        $args['search'] = '*' . $search_term . '*';
-        $args['search_columns'] = ['user_email'];
-    } else {
-        $args['search'] = '*' . $search_term . '*';
-        $args['search_columns'] = ['display_name', 'user_login'];
-    }
-    
-    $users = get_users($args);
-    
-    $results = [];
-    foreach ($users as $user) {
-        $first_name = get_user_meta($user->ID, 'first_name', true);
-        $last_name = get_user_meta($user->ID, 'last_name', true);
+        $search_pattern = '%' . $wpdb->esc_like($search_term) . '%';
         
-        $display = trim($first_name . ' ' . $last_name);
-        if (empty($display)) {
-            $display = $user->display_name;
+        $users = $wpdb->get_results($wpdb->prepare(
+            "SELECT ID, user_email, display_name 
+            FROM {$wpdb->users} 
+            WHERE user_email LIKE %s 
+            ORDER BY display_name ASC 
+            LIMIT 10",
+            $search_pattern
+        ));
+        
+        foreach ($users as $user_data) {
+            $user = get_user_by('ID', $user_data->ID);
+            
+            $clients[] = [
+                'id' => $user->ID,
+                'first_name' => get_user_meta($user->ID, 'billing_first_name', true) ?: $user->first_name,
+                'last_name' => get_user_meta($user->ID, 'billing_last_name', true) ?: $user->last_name,
+                'email' => $user->user_email,
+                'phone' => get_user_meta($user->ID, 'billing_phone', true),
+                'street_address' => get_user_meta($user->ID, 'billing_address_1', true),
+                'address_2' => get_user_meta($user->ID, 'billing_address_2', true),
+                'city' => get_user_meta($user->ID, 'billing_city', true),
+                'state' => get_user_meta($user->ID, 'billing_state', true),
+                'zip' => get_user_meta($user->ID, 'billing_postcode', true),
+                'country' => get_user_meta($user->ID, 'billing_country', true),
+                'display' => $user->display_name
+            ];
         }
         
-        $results[] = [
-            'id' => $user->ID,
-            'display' => $display,
-            'email' => $user->user_email,
-            'first_name' => $first_name,
-            'last_name' => $last_name,
-            'phone' => get_user_meta($user->ID, 'billing_phone', true),
-            'country' => get_user_meta($user->ID, 'billing_country', true)
-        ];
+    } else {
+        // Name search - search all users
+        $search_pattern = '%' . $wpdb->esc_like($search_term) . '%';
+        
+        $users = $wpdb->get_results($wpdb->prepare(
+            "SELECT ID, user_email, display_name 
+            FROM {$wpdb->users} 
+            WHERE display_name LIKE %s OR user_email LIKE %s
+            ORDER BY display_name ASC 
+            LIMIT 10",
+            $search_pattern,
+            $search_pattern
+        ));
+        
+        foreach ($users as $user_data) {
+            $user = get_user_by('ID', $user_data->ID);
+            
+            $clients[] = [
+                'id' => $user->ID,
+                'first_name' => get_user_meta($user->ID, 'billing_first_name', true) ?: $user->first_name,
+                'last_name' => get_user_meta($user->ID, 'billing_last_name', true) ?: $user->last_name,
+                'email' => $user->user_email,
+                'phone' => get_user_meta($user->ID, 'billing_phone', true),
+                'street_address' => get_user_meta($user->ID, 'billing_address_1', true),
+                'address_2' => get_user_meta($user->ID, 'billing_address_2', true),
+                'city' => get_user_meta($user->ID, 'billing_city', true),
+                'state' => get_user_meta($user->ID, 'billing_state', true),
+                'zip' => get_user_meta($user->ID, 'billing_postcode', true),
+                'country' => get_user_meta($user->ID, 'billing_country', true),
+                'display' => $user->display_name
+            ];
+        }
     }
     
-    wp_send_json_success($results);
+    wp_send_json_success($clients);
 }
 add_action('wp_footer', 'el_enhanced_wizard_scripts', 999);
 
@@ -2344,55 +2256,65 @@ function el_enhanced_wizard_scripts() {
             }
         };
         
-        // AJAX form submission for Tab 1
-        $(document).on('submit', '#gform_1', function(e) {
-            e.preventDefault();
-            
-            var $form = $(this);
-            var $submitBtn = $form.find('.gform_button');
-            
-            // Show loading state
-            $submitBtn.text('Saving...').prop('disabled', true);
-            
-            // Gather form data
-            var formData = $form.serialize();
-            
-            // Submit via AJAX
-            $.ajax({
-                url: el_ajax.ajax_url,
-                type: 'POST',
-                data: {
-                    action: 'el_save_client_ajax',
-                    form_data: formData,
-                    nonce: '<?php echo wp_create_nonce("el_client_form_nonce"); ?>'
-                },
-                success: function(response) {
-                    if (response.success) {
-                        // Show success message
-                        showNotification('✓ Client details saved successfully', 'success');
-                        
-                        // Switch to Tab 2
-                        setTimeout(function() {
-                            if (typeof switchToTab === 'function') {
-                                switchToTab(2);
-                            } else if (typeof window.elTabNav !== 'undefined') {
-                                window.elTabNav.goToTab(2);
-                            } else {
-                                $('.el-tab-2').click();
-                            }
-                        }, 500);
-                        
-                    } else {
-                        showNotification('Error: ' + (response.data.message || 'Could not save client details'), 'error');
-                        $submitBtn.text('Save Client Details').prop('disabled', false);
+jQuery(document).ready(function($) {
+    // AJAX form submission for Tab 1
+    $(document).on('submit', '#gform_1', function(e) {
+        e.preventDefault();
+        
+        var $form = $(this);
+        var $submitBtn = $form.find('.gform_button');
+        
+        // Show loading state
+        $submitBtn.text('Saving...').prop('disabled', true);
+        
+        // Gather form data
+        var formData = $form.serialize();
+        
+        // Submit via AJAX with correct nonce
+        $.ajax({
+            url: el_ajax.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'el_save_client_ajax',
+                form_data: formData,
+                nonce: el_ajax.nonce  // Use the el_ajax.nonce that's already localized
+            },
+            success: function(response) {
+                if (response.success) {
+                    // Show success message
+                    console.log('Client saved successfully');
+                    
+                    // Store client ID if needed
+                    if (response.data.client_id) {
+                        window.el_current_client_id = response.data.client_id;
                     }
-                },
-                error: function() {
-                    showNotification('Connection error. Please try again.', 'error');
-                    $submitBtn.text('Save Client Details').prop('disabled', false);
+                    
+                    // Move to next tab
+                    if (response.data.next_tab) {
+                        // Switch to Tab 2 (adjust selector as needed)
+                        $('.el-tab-2').click();
+                        // Or use your specific tab switching method
+                    }
+                    
+                    // Update UI
+                    $submitBtn.text('Saved!').addClass('success');
+                    setTimeout(function() {
+                        $submitBtn.text('Save & Continue').removeClass('success').prop('disabled', false);
+                    }, 2000);
+                } else {
+                    // Show error message
+                    alert('Error: ' + (response.data.message || 'Could not save client information'));
+                    $submitBtn.text('Save & Continue').prop('disabled', false);
                 }
-            });
+            },
+            error: function(xhr, status, error) {
+                console.error('AJAX Error:', error);
+                alert('Connection error. Please try again.');
+                $submitBtn.text('Save & Continue').prop('disabled', false);
+            }
         });
+    });
+});
         
         // Enhanced PDF Preview Generation (No iframe)
         window.elGeneratePDFPreview = function() {
@@ -4863,7 +4785,54 @@ function el_enqueue_scripts() {
         'nonce' => wp_create_nonce('el_nonce')
     ]);
 }
+/**
+ * AJAX: Search and load complete customer billing details
+ */
+add_action('wp_ajax_el_search_clients', 'el_ajax_search_clients');
+add_action('wp_ajax_nopriv_el_search_clients', 'el_ajax_search_clients');
 
+function el_ajax_search_clients() {
+    check_ajax_referer('el_ajax_nonce', 'nonce');
+    
+    $search = sanitize_text_field($_POST['search'] ?? '');
+    
+    if (strlen($search) < 2) {
+        wp_send_json_success(['clients' => []]);
+    }
+    
+    // Search WooCommerce customers
+    $args = [
+        'role__in' => ['customer', 'administrator'],
+        'search' => "*{$search}*",
+        'search_columns' => ['user_email', 'user_login', 'display_name'],
+        'number' => 10,
+        'orderby' => 'display_name',
+        'order' => 'ASC'
+    ];
+    
+    $user_query = new WP_User_Query($args);
+    $clients = [];
+    
+    foreach ($user_query->get_results() as $user) {
+        // Get complete billing details
+        $clients[] = [
+            'id' => $user->ID,
+            'first_name' => get_user_meta($user->ID, 'billing_first_name', true) ?: $user->first_name,
+            'last_name' => get_user_meta($user->ID, 'billing_last_name', true) ?: $user->last_name,
+            'email' => $user->user_email,
+            'phone' => get_user_meta($user->ID, 'billing_phone', true),
+            'street_address' => get_user_meta($user->ID, 'billing_address_1', true),
+            'address_2' => get_user_meta($user->ID, 'billing_address_2', true),
+            'city' => get_user_meta($user->ID, 'billing_city', true),
+            'state' => get_user_meta($user->ID, 'billing_state', true),
+            'zip' => get_user_meta($user->ID, 'billing_postcode', true),
+            'country' => get_user_meta($user->ID, 'billing_country', true),
+            'display_name' => $user->display_name
+        ];
+    }
+    
+    wp_send_json_success(['clients' => $clients]);
+}
 // Fix for email lookup with correct field IDs
 add_action('wp_footer', 'el_fix_email_lookup_fields', 9999);
 function el_fix_email_lookup_fields() {
@@ -4883,7 +4852,7 @@ function el_fix_email_lookup_fields() {
                 return;
             }
             
-            // Debounce
+// Debounce
             clearTimeout(window.elSearchTimeout);
             window.elSearchTimeout = setTimeout(function() {
                 $.ajax({
@@ -4909,12 +4878,24 @@ function el_fix_email_lookup_fields() {
                                     .data('client', client)
                                     .on('click', function() {
                                         var c = $(this).data('client');
-                                        $('#input_1_1_3').val(c.first_name);
-                                        $('#input_1_1_6').val(c.last_name);
-                                        $('#input_1_2').val(c.email);
-                                        $('#input_1_5').val(c.phone);
-                                        $('#input_1_6').val(c.country);
+                                        
+                                        // Name and contact
+                                        $('#input_1_1_3').val(c.first_name || '');
+                                        $('#input_1_1_6').val(c.last_name || '');
+                                        $('#input_1_2').val(c.email || '');
+                                        $('#input_1_5').val(c.phone || '');
+                                        
+                                        // Complete address (Field ID 6)
+                                        $('#input_1_6_1').val(c.street_address || c.billing_address_1 || '');
+                                        $('#input_1_6_2').val(c.address_2 || c.billing_address_2 || '');
+                                        $('#input_1_6_3').val(c.city || c.billing_city || '');
+                                        $('#input_1_6_4').val(c.state || c.billing_state || '');
+                                        $('#input_1_6_5').val(c.zip || c.billing_postcode || '');
+                                        $('#input_1_6_6').val(c.country || c.billing_country || '');
+                                        
                                         $('.el-client-suggestions').remove();
+                                        
+                                        console.log('✅ Loaded billing details:', c);
                                     });
                                 $suggestions.append($item);
                             });
@@ -6427,130 +6408,8 @@ function el_clear_saved_cart_state() {
     }
 }
 
-/**
- * =================================================================
- * PART 5: TAB 5 - PRINT-READY WYSIWYG EDITOR
- * Pixel-perfect A4 print layout with TinyMCE editor
- * =================================================================
- */
 
-/**
- * Load print-ready HTML for editing
- */
-add_action('wp_ajax_el_load_print_editor', 'el_ajax_load_print_editor');
-add_action('wp_ajax_nopriv_el_load_print_editor', 'el_ajax_load_print_editor');
 
-function el_ajax_load_print_editor() {
-    check_ajax_referer('el_nonce', 'nonce');
-    
-    if (!session_id()) {
-        // Session already started via init hook
-    }
-    
-    // Get PDF reference from session
-    $pdf_reference = $_SESSION['el_pdf_reference'] ?? '';
-    
-    if (empty($pdf_reference)) {
-        wp_send_json_error(['message' => 'No PDF data found. Please generate preview first.']);
-    }
-    
-    // Get PDF data from transient
-    $pdf_data = get_transient('el_pdf_data_' . $pdf_reference);
-    
-    if (!$pdf_data) {
-        wp_send_json_error(['message' => 'PDF data expired. Please regenerate preview.']);
-    }
-    
-    // Generate print-ready HTML
-    $html = el_render_print_ready_html($pdf_data);
-    
-    wp_send_json_success([
-        'html' => $html,
-        'reference' => $pdf_reference
-    ]);
-}
-
-/**
- * Save edited HTML and generate final PDF
- */
-add_action('wp_ajax_el_save_edited_pdf', 'el_ajax_save_edited_pdf');
-add_action('wp_ajax_nopriv_el_save_edited_pdf', 'el_ajax_save_edited_pdf');
-
-function el_ajax_save_edited_pdf() {
-    check_ajax_referer('el_nonce', 'nonce');
-    
-    if (!session_id()) {
-        // Session already started via init hook
-    }
-    
-    $pdf_reference = isset($_POST['reference']) ? sanitize_text_field($_POST['reference']) : '';
-    
-    // Use wp_unslash to remove WordPress added slashes
-    $edited_html = isset($_POST['html']) ? wp_unslash($_POST['html']) : '';
-    
-    if (empty($pdf_reference)) {
-        wp_send_json_error(['message' => 'Missing PDF reference']);
-    }
-    
-    if (empty($edited_html)) {
-        wp_send_json_error(['message' => 'Missing HTML content']);
-    }
-    
-    // Validate HTML is not too large (10MB limit)
-    if (strlen($edited_html) > 10485760) {
-        wp_send_json_error(['message' => 'HTML content too large']);
-    }
-    
-    // Get original PDF data
-    $pdf_data = get_transient('el_pdf_data_' . $pdf_reference);
-    
-    if (!$pdf_data) {
-        wp_send_json_error(['message' => 'PDF data expired. Please reload the document.']);
-    }
-    
-    // Store edited HTML with proper encoding
-    $pdf_data['edited_html'] = $edited_html;
-    $pdf_data['last_edited'] = current_time('mysql');
-    
-    // Extend transient expiration
-    set_transient('el_pdf_data_' . $pdf_reference, $pdf_data, 2 * HOUR_IN_SECONDS);
-    
-    // Save to engagement letter post meta if exists
-    $el_id = null;
-    $share_url = null;
-    
-    if (isset($_SESSION['el_engagement_letter_id'])) {
-        $el_id = intval($_SESSION['el_engagement_letter_id']);
-        
-        // Encrypt sensitive data before storing
-        $encrypted_html = el_encrypt_data($edited_html);
-        
-        update_post_meta($el_id, '_el_final_html_encrypted', $encrypted_html);
-        update_post_meta($el_id, '_el_final_html', $edited_html); // Keep unencrypted for backward compatibility
-        update_post_meta($el_id, '_el_pdf_reference', $pdf_reference);
-        update_post_meta($el_id, '_el_pdf_generated_date', current_time('mysql'));
-        update_post_meta($el_id, '_el_last_edited', current_time('mysql'));
-        
-        // Generate secure 14-day viewing token
-        $current_user_id = get_current_user_id();
-        $view_token = el_generate_view_token($el_id, $current_user_id, 60 * 24 * 14); // 14 days
-        $share_url = add_query_arg([
-            'el_view' => '1',
-            'token' => $view_token
-        ], home_url('/'));
-        
-        // Log document save
-        el_log_document_access($el_id, $current_user_id, 'save');
-    }
-    
-    wp_send_json_success([
-        'message' => 'Document saved successfully',
-        'share_url' => $share_url,
-        'expires_in_days' => 14,
-        'saved_at' => current_time('mysql'),
-        'encrypted' => true
-    ]);
-}
 
 /**
  * Generate PDF from HTML and attach to engagement letter post
@@ -6804,102 +6663,7 @@ function el_handle_load_print_editor() {
     wp_send_json_success($response_data);
 }
 
-// Enhanced save handler that preserves reference
-add_action('wp_ajax_el_save_edited_pdf', 'el_handle_save_edited_pdf');
-add_action('wp_ajax_nopriv_el_save_edited_pdf', 'el_handle_save_edited_pdf');
 
-function el_handle_save_edited_pdf() {
-    // Verify nonce
-    check_ajax_referer('el_nonce', 'nonce');
-    
-    $reference = isset($_POST['reference']) ? sanitize_text_field($_POST['reference']) : '';
-    $content = isset($_POST['content']) ? wp_kses_post($_POST['content']) : '';
-    $paper_only = isset($_POST['paper_only']) ? $_POST['paper_only'] === 'true' : false;
-    
-    if (empty($reference) || empty($content)) {
-        wp_send_json_error(['message' => 'Invalid data']);
-    }
-    
-    // Check permissions
-    $current_user = wp_get_current_user();
-    $can_edit = current_user_can('edit_posts') || get_user_meta($current_user->ID, 'el_can_edit_documents', true);
-    
-    if (!$can_edit) {
-        wp_send_json_error(['message' => 'You do not have permission to edit documents']);
-    }
-    
-    // Remove pagination markers for storage
-    if (class_exists('EL_Pagination_Handler')) {
-        $content = EL_Pagination_Handler::remove_pagination_markers($content);
-    }
-    
-    // Save the edited content
-    set_transient('el_saved_pdf_' . $reference, $content, 24 * HOUR_IN_SECONDS);
-    
-    // Update the PDF data if it exists
-    $pdf_data = get_transient('el_pdf_data_' . $reference);
-    if ($pdf_data) {
-        $pdf_data['edited'] = true;
-        $pdf_data['edited_at'] = current_time('mysql');
-        $pdf_data['paper_only'] = $paper_only;
-        set_transient('el_pdf_data_' . $reference, $pdf_data, 24 * HOUR_IN_SECONDS);
-    }
-    
-    // Generate share link
-    $share_link = home_url('/engagement-letter-print/?ref=' . $reference);
-    
-    wp_send_json_success([
-        'message' => 'Changes saved successfully',
-        'share_link' => $share_link,
-        'timestamp' => current_time('mysql')
-    ]);
-}
-
-// Handler to toggle paper-only mode
-add_action('wp_ajax_el_toggle_paper_only', 'el_handle_toggle_paper_only');
-add_action('wp_ajax_nopriv_el_toggle_paper_only', 'el_handle_toggle_paper_only');
-
-function el_handle_toggle_paper_only() {
-    check_ajax_referer('el_nonce', 'nonce');
-    
-    $reference = isset($_POST['reference']) ? sanitize_text_field($_POST['reference']) : '';
-    $paper_only = isset($_POST['paper_only']) ? $_POST['paper_only'] === 'true' : false;
-    $current_content = isset($_POST['content']) ? wp_kses_post($_POST['content']) : '';
-    
-    if (empty($reference)) {
-        wp_send_json_error(['message' => 'No reference provided']);
-    }
-    
-    // Get clean content without pagination
-    if (class_exists('EL_Pagination_Handler')) {
-        $clean_content = EL_Pagination_Handler::remove_pagination_markers($current_content);
-    } else {
-        $clean_content = $current_content;
-    }
-    
-    // Apply or remove pagination based on mode
-    $response_data = [
-        'html' => $clean_content,
-        'paper_only' => $paper_only,
-        'total_pages' => 1,
-        'message' => $paper_only ? 'Switched to paper-only mode' : 'Switched to digital mode'
-    ];
-    
-    if ($paper_only && class_exists('EL_Pagination_Handler')) {
-        $pagination_options = [
-            'paper_only' => true,
-            'add_page_signatures' => true,
-            'signature_format' => 'Client signature …………..……………………… Date ………… Page %d/%d',
-            'lines_per_page' => 54
-        ];
-        
-        $paginated = EL_Pagination_Handler::paginate_content($clean_content, $pagination_options);
-        $response_data['html'] = $paginated['html'];
-        $response_data['total_pages'] = $paginated['page_count'];
-    }
-    
-    wp_send_json_success($response_data);
-}
 
 // Initialize JavaScript configuration
 add_action('wp_footer', 'el_print_editor_config_script');
@@ -8853,79 +8617,254 @@ function el_handle_diagnostic() {
     wp_send_json_success($diagnostics);
 }
 
-// Tab 5 with fallback
-add_shortcode('el_pdf_export_auto', 'el_tab5_print_editor_fixed');
+/**
+ * DIAGNOSTIC VERSION - Tab 5 with detailed error reporting
+ * This will show exactly what's failing
+ */
 
-function el_tab5_print_editor_fixed() {
-    add_action('wp_footer', 'el_tab5_fixed_script', 999);
+// Remove old shortcode if it exists
+remove_shortcode('el_pdf_export_auto');
+
+// Simple Tab 5 Shortcode
+add_shortcode('el_pdf_export_auto', 'el_tab5_simple_php');
+
+function el_tab5_simple_php() {
+    // Start session
+    if (!session_id()) {
+        session_start();
+    }
+    
+    // Check for document
+    $reference = isset($_SESSION['el_pdf_reference']) ? $_SESSION['el_pdf_reference'] : '';
+    $pdf_data = null;
+    $html_content = '';
+    $has_document = false;
+    
+    if (!empty($reference)) {
+        $pdf_data = get_transient('el_pdf_data_' . $reference);
+        $has_document = !empty($pdf_data);
+    }
+    
+    // If we have a document, generate the HTML server-side
+    if ($has_document) {
+        $preview_file = get_stylesheet_directory() . '/preview-inline.php';
+        
+        if (file_exists($preview_file)) {
+            require_once $preview_file;
+            
+            if (function_exists('el_render_engagement_letter_html')) {
+                $html_content = el_render_engagement_letter_html($pdf_data);
+                
+                // Add print styles inline
+                $print_styles = '<style>
+                    * { font-family: "Times New Roman", Times, serif !important; }
+                    body, p, div, span, h1, h2, h3, h4, h5, h6 { color: #000 !important; }
+                    [class*="bg-"] { background: white !important; }
+                    [class*="text-"] { color: #000 !important; }
+                    [class*="border"] { border-color: #000 !important; }
+                    .service-item { border: 1px solid #000 !important; background: white !important; }
+                    a { color: #000 !important; text-decoration: none !important; }
+                    button, .button { display: none !important; }
+                </style>';
+                
+                $html_content = $print_styles . $html_content;
+            } else {
+                // Basic fallback
+                $html_content = '<div style="padding: 40px; font-family: Times New Roman, serif;">';
+                $html_content .= '<h1>Engagement Letter</h1>';
+                $html_content .= '<p>Reference: ' . esc_html($reference) . '</p>';
+                $html_content .= '<p>Client: ' . esc_html($pdf_data['client']['name'] ?? 'N/A') . '</p>';
+                $html_content .= '</div>';
+            }
+        }
+    }
     
     ob_start();
     ?>
-    <div id="el-print-editor-container" style="min-height: 600px;">
-        <div class="el-loading" style="text-align: center; padding: 60px;">
-            <div style="width: 60px; height: 60px; border: 4px solid #e5e7eb; border-top: 4px solid #10b981; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto;"></div>
-            <p style="margin-top: 20px;">Loading print editor...</p>
+    
+    <?php if (!$has_document): ?>
+    <!-- No Document - Show Instructions -->
+    <div style="max-width: 800px; margin: 40px auto; padding: 20px;">
+        <div style="background: #fff7ed; border: 2px solid #fb923c; border-radius: 12px; padding: 30px;">
+            <h2 style="color: #ea580c;">📋 No Document Ready</h2>
+            <p>To create a print document, please:</p>
+            <ol>
+                <li>Fill in client details (Tab 1)</li>
+                <li>Select services (Tab 2)</li>
+                <li>Click "Preview Engagement Letter" (Tab 3)</li>
+                <li>Wait for preview to load (Tab 4)</li>
+                <li>Return here for print version</li>
+            </ol>
+            <form method="post" style="margin-top: 20px;">
+                <button type="submit" name="refresh_tab5" style="padding: 10px 20px; background: #10b981; color: white; border: none; border-radius: 6px; cursor: pointer;">
+                    🔄 Check Again
+                </button>
+            </form>
         </div>
     </div>
+    
+    <?php else: ?>
+    <!-- Document Ready - Show Print Version -->
+    <div style="max-width: 210mm; margin: 0 auto; padding: 20px;">
+        <!-- Toolbar -->
+        <div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h2 style="margin: 0;">📄 Print-Ready Document</h2>
+                    <p style="margin: 5px 0 0; color: #666; font-size: 14px;">
+                        Reference: <?php echo esc_html($reference); ?> | 
+                        Client: <?php echo esc_html($pdf_data['client']['name'] ?? 'N/A'); ?>
+                    </p>
+                </div>
+                <div>
+                    <button onclick="window.print()" style="padding: 10px 20px; background: #3b82f6; color: white; border: none; border-radius: 6px; cursor: pointer;">
+                        🖨️ Print
+                    </button>
+                    <form method="post" style="display: inline;">
+                        <button type="submit" name="refresh_tab5" style="padding: 10px 20px; background: #6b7280; color: white; border: none; border-radius: 6px; cursor: pointer;">
+                            🔄 Refresh
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Print Content -->
+        <div id="print-content" style="background: white; padding: 40px; box-shadow: 0 0 20px rgba(0,0,0,0.1); font-family: 'Times New Roman', serif; font-size: 11pt; line-height: 1.5; color: #000;">
+            <?php echo $html_content; ?>
+        </div>
+    </div>
+    
+    <style>
+    @media print {
+        body * { visibility: hidden; }
+        #print-content, #print-content * { visibility: visible; }
+        #print-content { 
+            position: absolute; 
+            left: 0; 
+            top: 0;
+            width: 210mm;
+            padding: 20mm !important;
+        }
+        button { display: none !important; }
+    }
+    </style>
+    <?php endif; ?>
+    
     <?php
     return ob_get_clean();
 }
 
-function el_tab5_fixed_script() {
+/**
+ * Fix for Resume Banner
+ */
+remove_shortcode('el_resume_banner');
+add_shortcode('el_resume_banner', 'el_resume_banner_simple');
+
+function el_resume_banner_simple() {
+    if (!session_id()) {
+        session_start();
+    }
+    
+    $has_session = isset($_SESSION['el_pdf_reference']) && !empty($_SESSION['el_pdf_reference']);
+    
+    if (!$has_session) {
+        return ''; // No banner if no session
+    }
+    
+    ob_start();
     ?>
-    <script>
-    jQuery(document).ready(function($) {
-        var editorLoaded = false;
-        
-        function loadPrintEditor() {
-            if (editorLoaded || !$('#el-print-editor-container').is(':visible')) return;
-            
-            editorLoaded = true;
-            
-            // Use PDF data from Tab 4
-            if (window.currentPDFData && window.currentPDFData.html) {
-                $('#el-print-editor-container').html(`
-                    <div style="max-width: 900px; margin: 0 auto; padding: 20px;">
-                        <div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
-                            <h2>📄 Print Preview</h2>
-                            <button onclick="window.print()" style="padding: 10px 20px; background: #3b82f6; color: white; border: none; border-radius: 6px;">🖨️ Print</button>
-                        </div>
-                        <div id="print-content" style="background: white; padding: 40px; box-shadow: 0 0 20px rgba(0,0,0,0.1);">
-                            ${window.currentPDFData.html}
-                        </div>
-                    </div>
-                `);
-                
-                // Add print CSS
-                $('head').append(`
-                    <style>
-                    @media print {
-                        body * { visibility: hidden; }
-                        #print-content, #print-content * { visibility: visible; }
-                        #print-content { position: absolute; left: 0; top: 0; }
-                    }
-                    </style>
-                `);
-            } else {
-                $('#el-print-editor-container').html('<div style="text-align:center;padding:60px;">No document found. Please generate preview in Tab 4 first.</div>');
-            }
-        }
-        
-        // Load when Tab 5 clicked
-        $(document).on('click', '#brxe-zmmopw', function() {
-            setTimeout(function() {
-                editorLoaded = false;
-                loadPrintEditor();
-            }, 500);
-        });
-        
-        // Check if visible
-        setInterval(function() {
-            if ($('#el-print-editor-container').is(':visible') && !editorLoaded) {
-                loadPrintEditor();
-            }
-        }, 500);
-    });
-    </script>
+    <div style="background: #e0f2fe; border: 2px solid #0284c7; border-radius: 8px; padding: 15px; margin: 20px 0;">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+            <div>
+                <strong style="color: #075985;">📋 Resume Previous Session</strong>
+                <p style="margin: 5px 0 0; color: #0c4a6e;">You have an engagement letter in progress</p>
+            </div>
+            <form method="post" style="margin: 0;">
+                <button type="submit" name="skip_to_template" value="1" style="padding: 8px 16px; background: #0284c7; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                    Skip client details and proceed →
+                </button>
+            </form>
+        </div>
+    </div>
     <?php
+    
+    // Handle form submission
+    if (isset($_POST['skip_to_template'])) {
+        ?>
+        <script>
+        // Simple redirect to Tab 2 or 3
+        setTimeout(function() {
+            var tab3 = document.querySelector('[data-tab="3"], #brxe-huzwua, .el-tab-3');
+            if (tab3) {
+                tab3.click();
+            } else {
+                alert('Please manually click on Tab 3 to continue');
+            }
+        }, 100);
+        </script>
+        <?php
+    }
+    
+    return ob_get_clean();
+}
+
+/**
+ * Simple session management fixes
+ */
+add_action('init', 'el_ensure_session', 1);
+function el_ensure_session() {
+    if (!session_id() && !headers_sent()) {
+        session_start();
+    }
+}
+
+/**
+ * Debug helper - Add this temporarily to check what's happening
+ */
+add_shortcode('el_debug_info', 'el_show_debug_info');
+function el_show_debug_info() {
+    if (!current_user_can('manage_options')) {
+        return 'Debug info only visible to admins';
+    }
+    
+    if (!session_id()) {
+        session_start();
+    }
+    
+    $info = [
+        'Session ID' => session_id() ? 'Active' : 'Not active',
+        'PDF Reference' => $_SESSION['el_pdf_reference'] ?? 'Not set',
+        'jQuery Version' => 'Check console',
+        'PHP Version' => PHP_VERSION,
+        'WordPress Version' => get_bloginfo('version'),
+        'Active Theme' => get_template(),
+        'Memory Limit' => ini_get('memory_limit'),
+    ];
+    
+    $output = '<div style="background: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0; font-family: monospace;">';
+    $output .= '<h3>🔍 Debug Information</h3>';
+    
+    foreach ($info as $key => $value) {
+        $output .= '<p><strong>' . $key . ':</strong> ' . esc_html($value) . '</p>';
+    }
+    
+    // Check for transients
+    if (!empty($_SESSION['el_pdf_reference'])) {
+        $pdf_data = get_transient('el_pdf_data_' . $_SESSION['el_pdf_reference']);
+        $output .= '<p><strong>PDF Data:</strong> ' . ($pdf_data ? 'Found' : 'Not found') . '</p>';
+    }
+    
+    $output .= '</div>';
+    
+    // Add jQuery version check
+    $output .= '<script>
+    if (typeof jQuery !== "undefined") {
+        console.log("jQuery Version: " + jQuery.fn.jquery);
+    } else {
+        console.log("jQuery is not loaded!");
+    }
+    </script>';
+    
+    return $output;
 }

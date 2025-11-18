@@ -7,16 +7,10 @@
 // Get reference from URL
 $reference = sanitize_text_field($_GET['ref'] ?? '');
 
-if (!$reference) {
-    wp_die('Invalid reference - please regenerate from wizard');
-}
 
 // Get PDF data from transient
 $pdf_data = get_transient('el_pdf_data_' . $reference);
 
-if (!$pdf_data) {
-    wp_die('Preview expired or not found. Please regenerate from the engagement letter wizard.');
-}
 
 // Get form data for merge tags
 $form_data = $pdf_data['form_data'] ?? [];
