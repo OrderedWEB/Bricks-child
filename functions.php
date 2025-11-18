@@ -1348,7 +1348,9 @@ add_shortcode('el_template_selection', function() {
     return ob_get_clean();
 });
 
-// Auto-generate PDF preview (no ref needed) - NO INLINE SCRIPT VERSION
+
+
+// Auto-generate PDF preview
 add_shortcode('el_pdf_preview_auto', 'el_render_auto_pdf_preview');
 
 function el_render_auto_pdf_preview() {
@@ -1373,53 +1375,167 @@ function el_render_auto_pdf_preview() {
     return ob_get_clean();
 }
 
-// Separate function for the JavaScript
+// FIXED JavaScript that waits for Tab 4 to be visible
 function el_pdf_preview_script() {
     ?>
     <script type="text/javascript">
     jQuery(document).ready(function($) {
-        if ($('#el-pdf-preview-container').length) {
-            console.log('📄 Auto-generating PDF preview...');
+        var pdfGenerated = false;
+        
+        // Function to generate PDF
+        function generatePDFPreview() {
+            if (pdfGenerated) return;
             
+            var $container = $('#el-pdf-preview-container');
+            
+            // Only proceed if container exists and is visible
+            if (!$container.length || !$container.is(':visible')) {
+                console.log('📄 PDF container not visible yet');
+                return;
+            }
+            
+            // Check if already has content (not loading state)
+            if (!$container.find('.el-pdf-loading').length && $container.children().length > 0) {
+                console.log('📄 PDF already generated');
+                return;
+            }
+            
+            pdfGenerated = true;
+            console.log('📄 Generating PDF preview now...');
+            
+            // Ensure loading state is shown
+            if (!$container.find('.el-pdf-loading').length) {
+                $container.html(
+                    '<div class="el-pdf-loading" style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 400px;">' +
+                    '<div class="el-spinner" style="width: 60px; height: 60px; border: 4px solid #e5e7eb; border-top-color: #3b82f6; border-radius: 50%; animation: el-spin 1s linear infinite;"></div>' +
+                    '<p style="margin-top: 20px; color: #6b7280;">Generating your engagement letter preview...</p>' +
+                    '</div>'
+                );
+            }
+            
+            // First ensure cart is refreshed
             $.ajax({
                 url: '<?php echo admin_url('admin-ajax.php'); ?>',
                 type: 'POST',
+                async: false, // Wait for cart refresh
+                data: {
+                    action: 'el_refresh_cart_session',
+                    nonce: '<?php echo wp_create_nonce('el_refresh'); ?>'
+                },
+                success: function(response) {
+                    console.log('✅ Cart refreshed before PDF generation');
+                }
+            });
+            
+            // Now generate PDF
+            $.ajax({
+                url: '<?php echo admin_url('admin-ajax.php'); ?>',
+                type: 'POST',
+                dataType: 'json',
                 data: {
                     action: 'el_generate_pdf_preview',
-                    nonce: '<?php echo wp_create_nonce('el_nonce'); ?>'
+                    nonce: '<?php echo wp_create_nonce('el_nonce'); ?>',
+                    source: 'auto_shortcode'
                 },
                 success: function(response) {
                     console.log('✅ PDF preview response:', response);
                     
                     if (response.success && response.data && response.data.html) {
-                        $('#el-pdf-preview-container').html(response.data.html);
+                        $container.hide().html(response.data.html).fadeIn(500);
                         window.elPdfReference = response.data.reference;
+                        window.currentPDFData = response.data; // For Tab 5
                         console.log('✅ Preview loaded successfully');
                     } else {
                         var errorMsg = response.data && response.data.message ? response.data.message : 'Please ensure you have items in your cart';
-                        $('#el-pdf-preview-container').html(
-                            '<div style="padding: 40px; text-align: center;">' +
-                            '<p style="color: #dc2626; font-size: 18px;">⚠️ Could not generate preview</p>' +
-                            '<p style="color: #6b7280; margin-top: 10px;">' + errorMsg + '</p>' +
+                        pdfGenerated = false; // Allow retry
+                        
+                        $container.html(
+                            '<div style="padding: 40px; text-align: center; background: #fef2f2; border: 2px solid #fca5a5; border-radius: 8px; margin: 20px;">' +
+                            '<p style="color: #dc2626; font-size: 18px; font-weight: 600; margin-bottom: 10px;">⚠️ Could not generate preview</p>' +
+                            '<p style="color: #6b7280; margin-bottom: 20px;">' + errorMsg + '</p>' +
+                            '<button onclick="retryPDFGeneration()" style="padding: 10px 24px; background: #3b82f6; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer;">🔄 Try Again</button>' +
                             '</div>'
                         );
                     }
                 },
                 error: function(xhr, status, error) {
                     console.error('❌ AJAX Error:', error);
-                    $('#el-pdf-preview-container').html(
-                        '<div style="padding: 40px; text-align: center;">' +
-                        '<p style="color: #dc2626; font-size: 18px;">⚠️ Connection error</p>' +
-                        '<p style="color: #6b7280; margin-top: 10px;">Please check your connection and try again</p>' +
+                    pdfGenerated = false; // Allow retry
+                    
+                    $container.html(
+                        '<div style="padding: 40px; text-align: center; background: #fef2f2; border: 2px solid #fca5a5; border-radius: 8px; margin: 20px;">' +
+                        '<p style="color: #dc2626; font-size: 18px; font-weight: 600; margin-bottom: 10px;">⚠️ Connection error</p>' +
+                        '<p style="color: #6b7280; margin-bottom: 20px;">Please check your connection and try again</p>' +
+                        '<button onclick="location.reload()" style="padding: 10px 24px; background: #3b82f6; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer;">🔄 Reload Page</button>' +
                         '</div>'
                     );
                 }
             });
         }
+        
+        // Make retry function globally available
+        window.retryPDFGeneration = function() {
+            pdfGenerated = false;
+            generatePDFPreview();
+        };
+        
+        // Method 1: Check if container is already visible (user might already be on Tab 4)
+        setTimeout(function() {
+            generatePDFPreview();
+        }, 500);
+        
+        // Method 2: Listen for Tab 4 clicks
+        $(document).on('click', '#brxe-ihqhkg, .el-tab-4, [aria-controls*="el-pdf"]', function() {
+            console.log('📍 Tab 4 clicked - will generate PDF');
+            setTimeout(function() {
+                pdfGenerated = false; // Reset flag to allow regeneration
+                generatePDFPreview();
+            }, 500);
+        });
+        
+        // Method 3: Listen for Preview button from Tab 3
+        $(document).on('click', '#el-preview-pdf-btn', function(e) {
+            e.preventDefault();
+            console.log('🎯 Preview button clicked');
+            $('#brxe-ihqhkg').trigger('click');
+            setTimeout(function() {
+                pdfGenerated = false;
+                generatePDFPreview();
+            }, 800);
+        });
+        
+        // Method 4: Monitor visibility changes
+        var checkInterval = setInterval(function() {
+            if ($('#el-pdf-preview-container').is(':visible') && !pdfGenerated) {
+                clearInterval(checkInterval);
+                generatePDFPreview();
+            }
+        }, 1000);
+        
+        // Stop checking after 30 seconds
+        setTimeout(function() {
+            clearInterval(checkInterval);
+        }, 30000);
     });
     </script>
     <?php
 }
+
+
+
+// Ensure cart loads for PDF generation
+add_action('wp_ajax_el_generate_pdf_preview', function() {
+    // Log source for debugging
+    error_log('PDF generation requested from: ' . ($_POST['source'] ?? 'unknown'));
+    
+    if (function_exists('WC')) {
+        if (is_null(WC()->cart)) {
+            wc_load_cart();
+        }
+        WC()->cart->get_cart_from_session();
+        error_log('Cart items available: ' . count(WC()->cart->get_cart()));
+    }
+}, 5);
   /**
  * =================================================================
  * AJAX Handler: Add Template to Cart
@@ -6608,158 +6724,199 @@ function el_render_print_editor_shortcode($atts) {
     <?php
     return ob_get_clean();
 }
-
-/**
- * ================================================================
- * AJAX: Load Document
- * ================================================================
- */
+// AJAX handler to load engagement letter into print editor
 add_action('wp_ajax_el_load_print_editor', 'el_handle_load_print_editor');
 add_action('wp_ajax_nopriv_el_load_print_editor', 'el_handle_load_print_editor');
 
 function el_handle_load_print_editor() {
+    // Verify nonce
     check_ajax_referer('el_nonce', 'nonce');
     
-    if (!current_user_can('edit_posts')) {
-        wp_send_json_error(['message' => 'Permission denied']);
+    // Get reference from session or POST
+    $reference = isset($_POST['reference']) ? sanitize_text_field($_POST['reference']) : '';
+    
+    // If no reference provided, try to get from session (set by Tab 4)
+    if (empty($reference)) {
+        if (!session_id()) {
+            session_start();
+        }
+        $reference = isset($_SESSION['el_pdf_reference']) ? $_SESSION['el_pdf_reference'] : '';
     }
     
-    // Start session
-    if (!session_id()) {
-        session_start();
+    if (empty($reference)) {
+        wp_send_json_error(['message' => 'No document reference found. Please generate the preview in Tab 4 first.']);
     }
     
-    // Get reference from session (set by Tab 4)
-    if (!isset($_SESSION['el_pdf_reference'])) {
-        wp_send_json_error(['message' => 'No document found. Please generate a PDF from Tab 4 first.']);
-    }
+    // Check if paper-only mode requested
+    $paper_only = isset($_POST['paper_only']) ? $_POST['paper_only'] === 'true' : false;
     
-    $reference = sanitize_text_field($_SESSION['el_pdf_reference']);
+    // Get the saved engagement letter HTML from Tab 4
+    $html = get_transient('el_saved_pdf_' . $reference);
     
-    // Get PDF data from transient
-    $pdf_data = get_transient('el_pdf_data_' . $reference);
-    
-    if (!$pdf_data) {
-        wp_send_json_error(['message' => 'Document expired. Please regenerate from the wizard.']);
-    }
-    
-    // Load the preview-inline.php file to get el_render_engagement_letter_html function
-    $preview_file = get_stylesheet_directory() . '/preview-inline.php';
-    if (file_exists($preview_file)) {
-        require_once $preview_file;
-    }
-    
-    // Check if function exists
-    if (!function_exists('el_render_engagement_letter_html')) {
-        wp_send_json_error(['message' => 'Error: el_render_engagement_letter_html function not found']);
-    }
-    
-    // Generate the HTML
-    $html = el_render_engagement_letter_html($pdf_data);
-    
-    // Load pagination class if it exists
-    $pagination_file = get_stylesheet_directory() . '/class-el-pagination.php';
-    if (file_exists($pagination_file)) {
-        require_once $pagination_file;
+    if (!$html) {
+        // Try to get from PDF data if saved HTML not found
+        $pdf_data = get_transient('el_pdf_data_' . $reference);
         
-        $paper_only = get_transient('el_paper_only_' . $reference) ?: false;
-        $paginator = new EL_Pagination();
-        $paginated = $paginator->paginate($html, $paper_only);
-        
-        wp_send_json_success([
-            'html' => $paginated['html'],
-            'reference' => $reference,
-            'total_pages' => $paginated['total_pages'],
-            'paper_only' => $paper_only
-        ]);
-    } else {
-        // No pagination - return raw HTML
-        wp_send_json_success([
-            'html' => $html,
-            'reference' => $reference,
-            'total_pages' => 1,
-            'paper_only' => false
-        ]);
+        if ($pdf_data) {
+            // Load the preview rendering function
+            $preview_file = get_stylesheet_directory() . '/preview-inline.php';
+            if (file_exists($preview_file)) {
+                require_once $preview_file;
+                
+                if (function_exists('el_render_engagement_letter_html')) {
+                    $html = el_render_engagement_letter_html($pdf_data);
+                    
+                    // Save for future use
+                    set_transient('el_saved_pdf_' . $reference, $html, 24 * HOUR_IN_SECONDS);
+                }
+            }
+        }
     }
+    
+    if (!$html) {
+        wp_send_json_error(['message' => 'Document not found or expired. Please regenerate in Tab 4.']);
+    }
+    
+    // Apply pagination if paper-only mode and pagination class exists
+    $response_data = [
+        'html' => $html,
+        'paper_only' => $paper_only,
+        'pages' => 1,
+        'reference' => $reference,
+        'message' => 'Document loaded successfully'
+    ];
+    
+    if ($paper_only && class_exists('EL_Pagination_Handler')) {
+        $pagination_options = [
+            'paper_only' => true,
+            'add_page_signatures' => true,
+            'signature_format' => 'Client signature …………..……………………… Date ………… Page %d/%d',
+            'lines_per_page' => 54, // Less lines to accommodate signature
+            'force_new_page_sections' => true
+        ];
+        
+        $paginated = EL_Pagination_Handler::paginate_content($html, $pagination_options);
+        $response_data['html'] = $paginated['html'];
+        $response_data['pages'] = $paginated['page_count'];
+        $response_data['paginated'] = true;
+    }
+    
+    wp_send_json_success($response_data);
 }
 
-/**
- * ================================================================
- * AJAX: Save Document
- * ================================================================
- */
+// Enhanced save handler that preserves reference
 add_action('wp_ajax_el_save_edited_pdf', 'el_handle_save_edited_pdf');
+add_action('wp_ajax_nopriv_el_save_edited_pdf', 'el_handle_save_edited_pdf');
 
 function el_handle_save_edited_pdf() {
+    // Verify nonce
     check_ajax_referer('el_nonce', 'nonce');
     
-    if (!current_user_can('edit_posts')) {
-        wp_send_json_error(['message' => 'Permission denied']);
+    $reference = isset($_POST['reference']) ? sanitize_text_field($_POST['reference']) : '';
+    $content = isset($_POST['content']) ? wp_kses_post($_POST['content']) : '';
+    $paper_only = isset($_POST['paper_only']) ? $_POST['paper_only'] === 'true' : false;
+    
+    if (empty($reference) || empty($content)) {
+        wp_send_json_error(['message' => 'Invalid data']);
     }
     
-    $reference = sanitize_text_field($_POST['reference'] ?? '');
-    $html = wp_kses_post($_POST['html'] ?? '');
-    $paper_only = (bool)($_POST['paper_only'] ?? false);
+    // Check permissions
+    $current_user = wp_get_current_user();
+    $can_edit = current_user_can('edit_posts') || get_user_meta($current_user->ID, 'el_can_edit_documents', true);
     
-    if (!$reference || !$html) {
-        wp_send_json_error(['message' => 'Missing required data']);
+    if (!$can_edit) {
+        wp_send_json_error(['message' => 'You do not have permission to edit documents']);
     }
     
-    // Save to transient (89 days)
-    set_transient('el_saved_pdf_' . $reference, $html, 89 * DAY_IN_SECONDS);
-    set_transient('el_paper_only_' . $reference, $paper_only, 89 * DAY_IN_SECONDS);
+    // Remove pagination markers for storage
+    if (class_exists('EL_Pagination_Handler')) {
+        $content = EL_Pagination_Handler::remove_pagination_markers($content);
+    }
     
-    // Generate share URL
-    $share_url = home_url('/engagement-letter-preview/?ref=' . $reference);
+    // Save the edited content
+    set_transient('el_saved_pdf_' . $reference, $content, 24 * HOUR_IN_SECONDS);
+    
+    // Update the PDF data if it exists
+    $pdf_data = get_transient('el_pdf_data_' . $reference);
+    if ($pdf_data) {
+        $pdf_data['edited'] = true;
+        $pdf_data['edited_at'] = current_time('mysql');
+        $pdf_data['paper_only'] = $paper_only;
+        set_transient('el_pdf_data_' . $reference, $pdf_data, 24 * HOUR_IN_SECONDS);
+    }
+    
+    // Generate share link
+    $share_link = home_url('/engagement-letter-print/?ref=' . $reference);
     
     wp_send_json_success([
-        'message' => 'Document saved successfully',
-        'share_url' => $share_url,
-        'reference' => $reference
+        'message' => 'Changes saved successfully',
+        'share_link' => $share_link,
+        'timestamp' => current_time('mysql')
     ]);
 }
 
-/**
- * ================================================================
- * AJAX: Toggle Paper-Only Mode
- * ================================================================
- */
+// Handler to toggle paper-only mode
 add_action('wp_ajax_el_toggle_paper_only', 'el_handle_toggle_paper_only');
+add_action('wp_ajax_nopriv_el_toggle_paper_only', 'el_handle_toggle_paper_only');
 
 function el_handle_toggle_paper_only() {
     check_ajax_referer('el_nonce', 'nonce');
     
-    if (!current_user_can('edit_posts')) {
-        wp_send_json_error(['message' => 'Permission denied']);
+    $reference = isset($_POST['reference']) ? sanitize_text_field($_POST['reference']) : '';
+    $paper_only = isset($_POST['paper_only']) ? $_POST['paper_only'] === 'true' : false;
+    $current_content = isset($_POST['content']) ? wp_kses_post($_POST['content']) : '';
+    
+    if (empty($reference)) {
+        wp_send_json_error(['message' => 'No reference provided']);
     }
     
-    $reference = sanitize_text_field($_POST['reference'] ?? '');
-    $paper_only = (bool)($_POST['paper_only'] ?? false);
-    $content = wp_kses_post($_POST['content'] ?? '');
-    
-    // Save setting
-    set_transient('el_paper_only_' . $reference, $paper_only, 89 * DAY_IN_SECONDS);
-    
-    // Re-paginate
-    $pagination_file = get_stylesheet_directory() . '/class-el-pagination.php';
-    if (file_exists($pagination_file)) {
-        require_once $pagination_file;
-        $paginator = new EL_Pagination();
-        $paginated = $paginator->paginate($content, $paper_only);
-        
-        wp_send_json_success([
-            'html' => $paginated['html'],
-            'total_pages' => $paginated['total_pages'],
-            'message' => $paper_only ? 'Paper-only mode enabled' : 'Digital mode enabled'
-        ]);
+    // Get clean content without pagination
+    if (class_exists('EL_Pagination_Handler')) {
+        $clean_content = EL_Pagination_Handler::remove_pagination_markers($current_content);
     } else {
-        wp_send_json_success([
-            'html' => $content,
-            'total_pages' => 1,
-            'message' => 'Mode updated (pagination not available)'
-        ]);
+        $clean_content = $current_content;
+    }
+    
+    // Apply or remove pagination based on mode
+    $response_data = [
+        'html' => $clean_content,
+        'paper_only' => $paper_only,
+        'total_pages' => 1,
+        'message' => $paper_only ? 'Switched to paper-only mode' : 'Switched to digital mode'
+    ];
+    
+    if ($paper_only && class_exists('EL_Pagination_Handler')) {
+        $pagination_options = [
+            'paper_only' => true,
+            'add_page_signatures' => true,
+            'signature_format' => 'Client signature …………..……………………… Date ………… Page %d/%d',
+            'lines_per_page' => 54
+        ];
+        
+        $paginated = EL_Pagination_Handler::paginate_content($clean_content, $pagination_options);
+        $response_data['html'] = $paginated['html'];
+        $response_data['total_pages'] = $paginated['page_count'];
+    }
+    
+    wp_send_json_success($response_data);
+}
+
+// Initialize JavaScript configuration
+add_action('wp_footer', 'el_print_editor_config_script');
+function el_print_editor_config_script() {
+    if (is_page() || is_single()) {
+        ?>
+        <script>
+        var el_print_config = {
+            ajax_url: '<?php echo admin_url('admin-ajax.php'); ?>',
+            nonce: '<?php echo wp_create_nonce('el_nonce'); ?>',
+            can_edit: <?php echo current_user_can('edit_posts') ? 'true' : 'false'; ?>
+        };
+        </script>
+        <?php
     }
 }
+
 
 /**
  * ================================================================
@@ -8540,4 +8697,235 @@ CSS;
     </html>
     <?php
     return ob_get_clean();
+}
+add_action('wp_footer', 'el_sync_pdf_with_tab3_changes', 999);
+
+function el_sync_pdf_with_tab3_changes() {
+    if (!is_page_template('engagement-letter-wizard.php')) {
+        return;
+    }
+    ?>
+    <script>
+    jQuery(document).ready(function($) {
+        console.log('🛒 Tab 3 to PDF Sync Active');
+        
+        var cartModified = false;
+        
+        // Hook into ALL cart modification events in Tab 3
+        $(document).on('change', '.el-qty-update, .quantity input, .el-bundle-component, input[type="checkbox"], input[type="radio"]', function() {
+            console.log('📦 Cart changed in Tab 3');
+            cartModified = true;
+        });
+        
+        // When Preview button is clicked after cart changes
+        $(document).off('click', '#el-preview-pdf-btn').on('click', '#el-preview-pdf-btn', function(e) {
+            e.preventDefault();
+            console.log('🎯 Preview clicked - refreshing cart first');
+            
+            // Click Tab 4
+            $('#brxe-ihqhkg').trigger('click');
+            
+            // Generate PDF with fresh cart
+            setTimeout(function() {
+                var $container = $('#el-pdf-preview-container');
+                $container.html('<div style="text-align:center;padding:60px;"><div style="width:50px;height:50px;border:4px solid #e5e7eb;border-top:4px solid #3b82f6;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto;"></div><p style="margin-top:20px;">Loading updated cart...</p></div>');
+                
+                // Force cart refresh then generate PDF
+                $.ajax({
+                    url: '<?php echo admin_url('admin-ajax.php'); ?>',
+                    type: 'POST',
+                    data: {
+                        action: 'el_refresh_cart_session',
+                        nonce: '<?php echo wp_create_nonce('el_refresh'); ?>'
+                    },
+                    success: function() {
+                        console.log('✅ Cart refreshed, generating PDF...');
+                        
+                        // Now generate PDF
+                        $.ajax({
+                            url: '<?php echo admin_url('admin-ajax.php'); ?>',
+                            type: 'POST',
+                            dataType: 'json',
+                            data: {
+                                action: 'el_generate_pdf_preview',
+                                nonce: '<?php echo wp_create_nonce('el_nonce'); ?>'
+                            },
+                            success: function(response) {
+                                if (response.success && response.data && response.data.html) {
+                                    $container.html(response.data.html);
+                                } else {
+                                    $container.html('<div style="text-align:center;padding:40px;"><p style="color:#dc2626;">Still no cart items detected</p><button onclick="location.reload()" style="margin-top:20px;padding:10px 24px;background:#3b82f6;color:white;border:none;border-radius:4px;">Reload Page</button></div>');
+                                }
+                            }
+                        });
+                    }
+                });
+            }, 800);
+        });
+        
+        $('head').append('<style>@keyframes spin{to{transform:rotate(360deg)}}</style>');
+    });
+    </script>
+    <?php
+}
+
+// PHP handler to refresh cart
+add_action('wp_ajax_el_refresh_cart_session', 'el_handle_refresh_cart_session');
+add_action('wp_ajax_nopriv_el_refresh_cart_session', 'el_handle_refresh_cart_session');
+
+
+
+// Diagnostic to find the difference
+add_action('wp_footer', 'el_diagnostic_page_vs_ajax', 999);
+
+function el_diagnostic_page_vs_ajax() {
+    if (!is_page_template('engagement-letter-wizard.php')) {
+        return;
+    }
+    ?>
+    <script>
+    jQuery(document).ready(function($) {
+        // Add diagnostic button to Tab 4
+        $(document).on('click', '#brxe-ihqhkg', function() {
+            setTimeout(function() {
+                var $container = $('#el-pdf-preview-container');
+                if ($container.length && $container.children().length === 0) {
+                    $container.html(`
+                        <div style="text-align:center;padding:40px;">
+                            <button id="run-diagnostic" style="padding:12px 30px;background:#6366f1;color:white;border:none;border-radius:6px;margin:10px;">
+                                🔍 Run Diagnostic
+                            </button>
+                            <div id="diagnostic-results" style="margin-top:20px;text-align:left;"></div>
+                        </div>
+                    `);
+                }
+            }, 500);
+        });
+        
+        $(document).on('click', '#run-diagnostic', function() {
+            $.ajax({
+                url: '<?php echo admin_url('admin-ajax.php'); ?>',
+                type: 'POST',
+                data: {
+                    action: 'el_run_diagnostic',
+                    nonce: '<?php echo wp_create_nonce('el_diagnostic'); ?>'
+                },
+                success: function(response) {
+                    $('#diagnostic-results').html('<pre>' + JSON.stringify(response.data, null, 2) + '</pre>');
+                    console.log('Diagnostic:', response.data);
+                }
+            });
+        });
+    });
+    </script>
+    <?php
+}
+
+// Diagnostic handler
+add_action('wp_ajax_el_run_diagnostic', 'el_handle_diagnostic');
+add_action('wp_ajax_nopriv_el_run_diagnostic', 'el_handle_diagnostic');
+
+function el_handle_diagnostic() {
+    check_ajax_referer('el_diagnostic', 'nonce');
+    
+    // Check what's available
+    $diagnostics = [
+        'session_id' => session_id(),
+        'session_started' => session_id() ? 'Yes' : 'No',
+        'wc_loaded' => function_exists('WC') ? 'Yes' : 'No',
+        'cart_null' => is_null(WC()->cart) ? 'Yes' : 'No',
+        'cart_items' => 0,
+        'user_id' => get_current_user_id(),
+        'cookies' => $_COOKIE
+    ];
+    
+    // Try to load cart
+    if (function_exists('WC')) {
+        if (is_null(WC()->cart)) {
+            wc_load_cart();
+        }
+        if (WC()->cart) {
+            WC()->cart->get_cart_from_session();
+            $diagnostics['cart_items'] = count(WC()->cart->get_cart());
+        }
+    }
+    
+    wp_send_json_success($diagnostics);
+}
+
+// Tab 5 with fallback
+add_shortcode('el_pdf_export_auto', 'el_tab5_print_editor_fixed');
+
+function el_tab5_print_editor_fixed() {
+    add_action('wp_footer', 'el_tab5_fixed_script', 999);
+    
+    ob_start();
+    ?>
+    <div id="el-print-editor-container" style="min-height: 600px;">
+        <div class="el-loading" style="text-align: center; padding: 60px;">
+            <div style="width: 60px; height: 60px; border: 4px solid #e5e7eb; border-top: 4px solid #10b981; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto;"></div>
+            <p style="margin-top: 20px;">Loading print editor...</p>
+        </div>
+    </div>
+    <?php
+    return ob_get_clean();
+}
+
+function el_tab5_fixed_script() {
+    ?>
+    <script>
+    jQuery(document).ready(function($) {
+        var editorLoaded = false;
+        
+        function loadPrintEditor() {
+            if (editorLoaded || !$('#el-print-editor-container').is(':visible')) return;
+            
+            editorLoaded = true;
+            
+            // Use PDF data from Tab 4
+            if (window.currentPDFData && window.currentPDFData.html) {
+                $('#el-print-editor-container').html(`
+                    <div style="max-width: 900px; margin: 0 auto; padding: 20px;">
+                        <div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+                            <h2>📄 Print Preview</h2>
+                            <button onclick="window.print()" style="padding: 10px 20px; background: #3b82f6; color: white; border: none; border-radius: 6px;">🖨️ Print</button>
+                        </div>
+                        <div id="print-content" style="background: white; padding: 40px; box-shadow: 0 0 20px rgba(0,0,0,0.1);">
+                            ${window.currentPDFData.html}
+                        </div>
+                    </div>
+                `);
+                
+                // Add print CSS
+                $('head').append(`
+                    <style>
+                    @media print {
+                        body * { visibility: hidden; }
+                        #print-content, #print-content * { visibility: visible; }
+                        #print-content { position: absolute; left: 0; top: 0; }
+                    }
+                    </style>
+                `);
+            } else {
+                $('#el-print-editor-container').html('<div style="text-align:center;padding:60px;">No document found. Please generate preview in Tab 4 first.</div>');
+            }
+        }
+        
+        // Load when Tab 5 clicked
+        $(document).on('click', '#brxe-zmmopw', function() {
+            setTimeout(function() {
+                editorLoaded = false;
+                loadPrintEditor();
+            }, 500);
+        });
+        
+        // Check if visible
+        setInterval(function() {
+            if ($('#el-print-editor-container').is(':visible') && !editorLoaded) {
+                loadPrintEditor();
+            }
+        }, 500);
+    });
+    </script>
+    <?php
 }
