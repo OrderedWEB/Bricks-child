@@ -11,6 +11,107 @@ if (!defined('ABSPATH')) exit;
  * PART 1: AJAX FORM SUBMISSION HANDLER FOR TAB 1
  * =================================================================
  */
+function el_integrate_enhanced_print_editor() {
+    // Only load if we haven't already loaded the original shortcode
+    if (!shortcode_exists('el_print_editor')) {
+        // Include the enhanced version
+        require_once plugin_dir_path(__FILE__) . 'el-print-editor-enhanced.php';
+        require_once plugin_dir_path(__FILE__) . 'class-el-pagination.php';
+        require_once plugin_dir_path(__FILE__) . 'el-print-enhanced.php';
+    } else {
+        // Remove the original shortcode and replace with enhanced
+        remove_shortcode('el_print_editor');
+        
+        // Include enhanced files
+        require_once plugin_dir_path(__FILE__) . 'el-print-editor-enhanced.php';
+        require_once plugin_dir_path(__FILE__) . 'class-el-pagination.php';
+        require_once plugin_dir_path(__FILE__) . 'el-print-enhanced.php';
+    }
+}
+
+add_action('init', 'el_integrate_enhanced_print_editor', 20);
+
+function el_create_print_history_table() {
+    global $wpdb;
+    
+    $table_name = $wpdb->prefix . 'el_print_history';
+    $charset_collate = $wpdb->get_charset_collate();
+    
+    $sql = "CREATE TABLE IF NOT EXISTS $table_name (
+        id int(11) NOT NULL AUTO_INCREMENT,
+        reference varchar(50) NOT NULL,
+        user_id int(11) DEFAULT NULL,
+        action varchar(50) DEFAULT NULL,
+        paper_only tinyint(1) DEFAULT 0,
+        timestamp datetime DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY reference (reference),
+        KEY user_id (user_id)
+    ) $charset_collate;";
+    
+    require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+    dbDelta($sql);
+}
+register_activation_hook(__FILE__, 'el_create_print_history_table');
+
+add_filter('el_print_editor_html', function($html, $pdf_data) {
+    // Check if paper-only mode
+    $is_paper_only = EL_Pagination_Handler::is_paper_only($pdf_data);
+    
+    if ($is_paper_only) {
+        // Apply pagination with page signatures
+        $pagination_options = [
+            'paper_only' => true,
+            'add_page_signatures' => true,
+            'signature_format' => get_option('el_signature_format', 'Client signature …………..……………………… Date ………… Page %d/%d')
+        ];
+        
+        $paginated_result = EL_Pagination_Handler::paginate_content($html, $pagination_options);
+        return $paginated_result['html'];
+    }
+    
+    return $html;
+}, 10, 2);
+function el_set_enhanced_defaults() {
+    // Default print settings
+    add_option('el_default_paper_only', '0');
+    add_option('el_signature_format', 'Client signature …………..……………………… Date ………… Page %d/%d');
+    add_option('el_min_lines_per_page', '2');
+    add_option('el_force_new_page_sections', '1');
+    add_option('el_keep_signatures_together', '1');
+}
+register_activation_hook(__FILE__, 'el_set_enhanced_defaults');
+
+/**
+ * COMPATIBILITY LAYER
+ * Ensures backward compatibility with existing code
+ */
+
+// Maintain compatibility with existing AJAX actions
+if (!has_action('wp_ajax_el_load_print_editor')) {
+    add_action('wp_ajax_el_load_print_editor', 'el_ajax_load_print_editor_enhanced');
+    add_action('wp_ajax_nopriv_el_load_print_editor', 'el_ajax_load_print_editor_enhanced');
+}
+
+if (!has_action('wp_ajax_el_save_edited_pdf')) {
+    add_action('wp_ajax_el_save_edited_pdf', 'el_ajax_save_edited_pdf_enhanced');
+    add_action('wp_ajax_nopriv_el_save_edited_pdf', 'el_ajax_save_edited_pdf_enhanced');
+}
+
+// Maintain compatibility with existing JavaScript globals
+add_action('wp_footer', function() {
+    if (is_page_template('engagement-letter-wizard.php') || has_shortcode(get_post()->post_content, 'el_print_editor')) {
+        ?>
+        <script>
+        // Maintain backward compatibility with existing code
+        if (typeof el_ajax !== 'undefined' && typeof el_print_config !== 'undefined') {
+            el_print_config.ajax_url = el_ajax.ajax_url;
+            el_print_config.nonce = el_ajax.nonce;
+        }
+        </script>
+        <?php
+    }
+});
 
 // Add AJAX handler for Gravity Forms submission
 add_action('wp_ajax_el_save_client_ajax', 'el_save_client_ajax');
