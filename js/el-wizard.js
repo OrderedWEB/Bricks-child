@@ -159,14 +159,22 @@ if (!$(".el-wizard-container").length && !$(".brxe-tabs-nested").length) {
      * TAB NAVIGATION
      * =================================================================
      */
-
-   switchToTab: function(tabNumber) {
+switchToTab: function(tabNumber) {
     console.log('🎯 switchToTab called:', tabNumber);
     
-    var $targetTab = $(`.el-tab-${tabNumber}, [data-tab="${tabNumber}"]`).first();
+    // Save current tab position
+    if (el_ajax && el_ajax.ajax_url) {
+        $.ajax({
+            url: el_ajax.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'el_save_current_tab',
+                tab_number: tabNumber
+            }
+        });
+    }
     
-    if (!$targetTab.length) {
-        console.warn('⚠️ Target tab not found:', tabNumber);
+    var $targetTab = $(`.el-tab-${tabNumber}, [data-tab="${tabNumber}"]`).first();
         return;
     }
     
@@ -307,17 +315,16 @@ onTabActivated: function(tabNumber) {
           form_data: formData,
           nonce: el_ajax.nonce,
         },
-        success: function (response) {
-          if (response.success) {
-            // Store client data
-            self.clientData = response.data;
+success: function (response) {
+    if (response.success) {
+        // Update button state
+        $button.text("Added").addClass("el-btn-success");
 
-            // Show success message
-            self.showNotification(
-              "✓ Client details saved successfully",
-              "success"
-            );
-
+        // Show success message
+        self.showNotification(
+            productName + " added to engagement letter",
+            "success"
+        );
             // Auto-switch to Tab 2
             setTimeout(function () {
               self.switchToTab(2);

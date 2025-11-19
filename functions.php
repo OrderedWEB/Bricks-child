@@ -282,9 +282,9 @@ function el_save_client_ajax() {
     error_log('EL SAVE: POST data: ' . print_r($_POST, true));
     
     // Single nonce verification - using el_ajax_nonce consistently
-    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'el_ajax_nonce')) {
+    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'el_nonce')) {
         error_log('EL SAVE: Nonce verification FAILED');
-        error_log('EL SAVE: Expected nonce action: el_ajax_nonce');
+        error_log('EL SAVE: Expected nonce action: el_nonce');
         error_log('EL SAVE: Received nonce: ' . ($_POST['nonce'] ?? 'none'));
         wp_send_json_error(['message' => 'Security check failed']);
         return;
@@ -987,7 +987,7 @@ add_shortcode('el_template_selection', function() {
                 <?php if (!empty($product_tags)): ?>
                 <div class="el-template-tags">
                     <?php foreach ($product_tags as $tag): ?>
-                        <span class="el-tag">�️ <?php echo esc_html($tag->name); ?></span>
+                        <span class="el-tag">🏷️ <?php echo esc_html($tag->name); ?></span>
                     <?php endforeach; ?>
                 </div>
                 <?php endif; ?>
@@ -1167,11 +1167,11 @@ add_shortcode('el_template_selection', function() {
                     product_id: productId,
                     nonce: '<?php echo wp_create_nonce("el_add_template"); ?>'
                 },
-               success: function(response) {
+ success: function(response) {
     console.log('✅ Cart response:', response);
     
     if (response.success) {
-        $btn.removeClass('loading').text('Added! ✓');
+        $btn.removeClass('loading').text('Added!');
         
         // Trigger WooCommerce cart refresh
         $(document.body).trigger('wc_fragment_refresh');
@@ -2559,28 +2559,28 @@ function el_get_cart_editor_content() {
         margin: 20px 0;
     }
     
-    .el-cart-item {
-        background: #ffffff;
-        border-radius: 16px;
-        overflow: hidden;
-           border: 2px solid #e5e7eb;
-        margin-bottom: 24px;
-        transition: all 0.4s ease;
-    }
+   .el-cart-item {
+    background: #ffffff;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid #e5e7eb;
+    margin-bottom: 16px;
+    transition: all 0.3s ease;
+}
     
-    .el-cart-item:hover {
-        box-shadow: 0 12px 48px rgba(0, 0, 0, 0.12);
-        border-color: #4a90e2;
-        transform: translateY(-4px);
-    }
+.el-cart-item:hover {
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+    border-color: #3b82f6;
+    transform: translateY(-2px);
+}
     
-    .el-cart-item-header {
-        display: grid;
-        grid-template-columns: 1fr auto;
-        gap: 32px;
-        padding: 40px;
-        align-items: center;
-    }
+.el-cart-item-header {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 20px;
+    padding: 20px;
+    align-items: center;
+}
     
     .el-cart-item-title {
         font-size: 28px;
@@ -2636,15 +2636,15 @@ function el_get_cart_editor_content() {
         color: #dc2626;
     }
     
-    .el-cart-item-actions {
-        padding: 0 40px 30px 40px;
-        display: flex;
-        gap: 15px;
-        align-items: center;
-        border-top: 1px solid #f3f4f6;
-        padding-top: 20px;
-        margin: 0 40px 20px 40px;
-    }
+.el-cart-item-actions {
+    padding: 0 20px 20px 20px;
+    display: flex;
+    gap: 15px;
+    align-items: center;
+    border-top: 1px solid #f3f4f6;
+    padding-top: 16px;
+    margin: 0 20px 16px 20px;
+}
     
     .el-qty-update {
         width: 80px;
@@ -2683,13 +2683,13 @@ function el_get_cart_editor_content() {
         cursor: not-allowed;
     }
     
-    .el-bundle-components {
-        margin: 0 40px 20px 40px;
-        padding: 20px;
-        background: #f8fafc;
-        border-radius: 8px;
-        border: 1px solid #e2e8f0;
-    }
+.el-bundle-components {
+    margin: 0 20px 16px 20px;
+    padding: 16px;
+    background: #f8fafc;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+}
     
     .el-bundle-components h4 {
         margin: 0 0 15px 0;
@@ -4792,7 +4792,7 @@ add_action('wp_ajax_el_search_clients', 'el_ajax_search_clients');
 add_action('wp_ajax_nopriv_el_search_clients', 'el_ajax_search_clients');
 
 function el_ajax_search_clients() {
-    check_ajax_referer('el_ajax_nonce', 'nonce');
+    check_ajax_referer('el_nonce', 'nonce');
     
     $search = sanitize_text_field($_POST['search'] ?? '');
     
@@ -5273,406 +5273,6 @@ function el_get_engagement_letter($post_id) {
         'generated_date' => get_post_meta($post_id, '_el_generated_date', true),
         'paid_date'      => get_post_meta($post_id, '_el_paid_date', true),
     );
-}
-
-/**
- * =================================================================
- * AUTO-SAVE & RESUME SYSTEM
- * =================================================================
- */
-
-/**
- * Resume draft banner shortcode
- * Place this at the top of the wizard page: [el_resume_banner]
- */
-add_shortcode('el_resume_banner', 'el_resume_banner_shortcode');
-
-function el_resume_banner_shortcode() {
-    if (!session_id()) {
-        // Session already started via init hook
-    }
-    
-    // Check if there's a draft in progress
-    $engagement_letter_id = isset($_SESSION['el_engagement_letter_id']) ? intval($_SESSION['el_engagement_letter_id']) : 0;
-    
-    if (!$engagement_letter_id) {
-        return ''; // No draft, no banner
-    }
-    
-    // Get engagement letter data
-    $el_data = el_get_engagement_letter($engagement_letter_id);
-    
-    if (!$el_data || $el_data['status'] !== 'draft') {
-        return ''; // Not a draft or doesn't exist
-    }
-    
-    // Get client name for display
-    $client_name = 'Unknown Client';
-    if ($el_data['client_id']) {
-        $client = get_userdata($el_data['client_id']);
-        if ($client) {
-            $client_name = $client->display_name;
-        }
-    } else {
-        $client_name = 'Blank Template';
-    }
-    
-    // Get template name if selected
-    $template_name = '';
-    if ($el_data['template_id']) {
-        $template = get_post($el_data['template_id']);
-        if ($template) {
-            $template_name = $template->post_title;
-        }
-    }
-    
-    // Format date
-    $date = $el_data['created_date'] ? date('d/m/Y H:i', strtotime($el_data['created_date'])) : '';
-    
-    ob_start();
-    ?>
-    <div id="el-resume-banner" class="el-resume-banner">
-        <div class="el-resume-banner-inner">
-            <div class="el-resume-icon">
-                📄
-            </div>
-            <div class="el-resume-content">
-                <h3 class="el-resume-title">You have a draft in progress</h3>
-                <p class="el-resume-details">
-                    <strong><?php echo esc_html($client_name); ?></strong>
-                    <?php if ($template_name): ?>
-                        - <?php echo esc_html($template_name); ?>
-                    <?php endif; ?>
-                    <?php if ($date): ?>
-                        <span class="el-resume-date">Started: <?php echo esc_html($date); ?></span>
-                    <?php endif; ?>
-                </p>
-            </div>
-            <div class="el-resume-actions">
-                <button type="button" class="el-resume-btn el-btn-resume" data-engagement-id="<?php echo esc_attr($engagement_letter_id); ?>">
-                    Resume Draft
-                </button>
-                <button type="button" class="el-resume-btn el-btn-start-fresh">
-                    Start Fresh
-                </button>
-            </div>
-        </div>
-    </div>
-    
-    <style>
-    .el-resume-banner {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        border-radius: 12px;
-        padding: 24px;
-        margin-bottom: 30px;
-        box-shadow: 0 4px 24px rgba(102, 126, 234, 0.25);
-        animation: el-slide-down 0.4s ease-out;
-    }
-    
-    @keyframes el-slide-down {
-        from {
-            opacity: 0;
-            transform: translateY(-20px);
-        }
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
-    }
-    
-    .el-resume-banner-inner {
-        display: grid;
-        grid-template-columns: auto 1fr auto;
-        gap: 20px;
-        align-items: center;
-    }
-    
-    .el-resume-icon {
-        font-size: 48px;
-        line-height: 1;
-    }
-    
-    .el-resume-content {
-        color: #ffffff;
-    }
-    
-    .el-resume-title {
-        margin: 0 0 8px 0;
-        font-size: 20px;
-        font-weight: 700;
-        color: #ffffff;
-    }
-    
-    .el-resume-details {
-        margin: 0;
-        font-size: 15px;
-        color: rgba(255, 255, 255, 0.9);
-    }
-    
-    .el-resume-date {
-        display: inline-block;
-        margin-left: 12px;
-        font-size: 13px;
-        color: rgba(255, 255, 255, 0.7);
-    }
-    
-    .el-resume-actions {
-        display: flex;
-        gap: 12px;
-    }
-    
-    .el-resume-btn {
-        padding: 12px 24px;
-        font-size: 15px;
-        font-weight: 600;
-        border-radius: 8px;
-        border: none;
-        cursor: pointer;
-        transition: all 0.3s ease;
-    }
-    
-    .el-btn-resume {
-        background: #ffffff;
-        color: #667eea;
-    }
-    
-    .el-btn-resume:hover {
-        background: #f0f0f0;
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    }
-    
-    .el-btn-start-fresh {
-        background: transparent;
-        color: #ffffff;
-        border: 2px solid rgba(255, 255, 255, 0.3);
-    }
-    
-    .el-btn-start-fresh:hover {
-        background: rgba(255, 255, 255, 0.1);
-        border-color: rgba(255, 255, 255, 0.5);
-    }
-    
-    @media (max-width: 768px) {
-        .el-resume-banner-inner {
-            grid-template-columns: 1fr;
-            text-align: center;
-        }
-        
-        .el-resume-actions {
-            justify-content: center;
-            flex-wrap: wrap;
-        }
-    }
-    </style>
-    
-    <script>
-    jQuery(document).ready(function($) {
-        // Resume draft
-        $('.el-btn-resume').on('click', function() {
-            var $btn = $(this);
-            var engagementId = $btn.data('engagement-id');
-            
-            $btn.text('Loading...').prop('disabled', true);
-            
-            $.ajax({
-                url: '<?php echo admin_url('admin-ajax.php'); ?>',
-                type: 'POST',
-                data: {
-                    action: 'el_resume_draft',
-                    engagement_id: engagementId,
-                    nonce: '<?php echo wp_create_nonce('el_resume_draft'); ?>'
-                },
-                success: function(response) {
-                    if (response.success) {
-                        console.log('✅ Draft resumed:', response.data);
-                        
-                        // Hide banner
-                        $('#el-resume-banner').slideUp(300);
-                        
-                        // Populate Tab 1 if we're there
-                        if (response.data.form_data) {
-                            var fd = response.data.form_data;
-                            $('#input_1_1_3').val(fd.first_name || '');
-                            $('#input_1_1_6').val(fd.last_name || '');
-                            $('#input_1_2').val(fd.email || '');
-                            $('#input_1_5').val(fd.phone || '');
-                            $('#input_1_6_1').val(fd.street_address || '');
-                            $('#input_1_6_3').val(fd.city || '');
-                            $('#input_1_6_4').val(fd.state || '');
-                            $('#input_1_6_5').val(fd.zip || '');
-                            $('#input_1_6_6').val(fd.country || '');
-                            $('#input_1_7').val(fd.notes || '');
-                        }
-                        
-                        // Navigate to appropriate tab
-                        var currentTab = response.data.current_tab || 2;
-                        var tabMap = {
-                            1: '#brxe-kjwfkc', // Tab 1
-                            2: '#brxe-caqeqv', // Tab 2
-                            3: '#brxe-mhedar', // Tab 3
-                            4: '#brxe-ihqhkg',   // Tab 4 
-                            5: '#brxe-zmmopw',   // Tab 5
-                        };
-                        
-                        var $tab = $(tabMap[currentTab]);
-                        if ($tab.length) {
-                            setTimeout(function() {
-                                $tab.click();
-                            }, 500);
-                        }
-                    } else {
-                        alert('Error resuming draft: ' + (response.data.message || 'Unknown error'));
-                        $btn.text('Resume Draft').prop('disabled', false);
-                    }
-                },
-                error: function() {
-                    alert('Connection error. Please try again.');
-                    $btn.text('Resume Draft').prop('disabled', false);
-                }
-            });
-        });
-        
-        // Start fresh
-        $('.el-btn-start-fresh').on('click', function() {
-            if (!confirm('Are you sure? Your draft will be deleted.')) {
-                return;
-            }
-            
-            var $btn = $(this);
-            $btn.text('Clearing...').prop('disabled', true);
-            
-            $.ajax({
-                url: '<?php echo admin_url('admin-ajax.php'); ?>',
-                type: 'POST',
-                data: {
-                    action: 'el_start_fresh',
-                    nonce: '<?php echo wp_create_nonce('el_start_fresh'); ?>'
-                },
-                success: function(response) {
-                    if (response.success) {
-                        console.log('✅ Started fresh');
-                        $('#el-resume-banner').slideUp(300, function() {
-                            $(this).remove();
-                        });
-                        
-                        // Clear form fields
-                        $('.gform_wrapper input[type="text"], .gform_wrapper input[type="email"], .gform_wrapper textarea').val('');
-                        
-                        // Ensure on Tab 1
-                        $('#brxe-kjwfkc').click();
-                    } else {
-                        alert('Error: ' + (response.data.message || 'Unknown error'));
-                        $btn.text('Start Fresh').prop('disabled', false);
-                    }
-                },
-                error: function() {
-                    alert('Connection error. Please try again.');
-                    $btn.text('Start Fresh').prop('disabled', false);
-                }
-            });
-        });
-    });
-    </script>
-    <?php
-    return ob_get_clean();
-}
-
-/**
- * AJAX: Resume draft
- */
-add_action('wp_ajax_el_resume_draft', 'el_handle_resume_draft');
-add_action('wp_ajax_nopriv_el_resume_draft', 'el_handle_resume_draft');
-
-function el_handle_resume_draft() {
-    if (!check_ajax_referer('el_resume_draft', 'nonce', false)) {
-        wp_send_json_error(['message' => 'Security check failed']);
-    }
-    
-    $engagement_id = isset($_POST['engagement_id']) ? intval($_POST['engagement_id']) : 0;
-    
-    if (!$engagement_id) {
-        wp_send_json_error(['message' => 'No engagement ID provided']);
-    }
-    
-    $el_data = el_get_engagement_letter($engagement_id);
-    
-    if (!$el_data) {
-        wp_send_json_error(['message' => 'Engagement letter not found']);
-    }
-    
-    // Restore to session
-    if (!session_id()) {
-        // Session already started via init hook
-    }
-    
-    $_SESSION['el_engagement_letter_id'] = $engagement_id;
-    $_SESSION['el_current_client_id'] = $el_data['client_id'];
-    $_SESSION['el_selected_template'] = $el_data['template_id'];
-    $_SESSION['el_form_data'] = $el_data['form_data'];
-    
-    // Determine which tab they should go to
-    $current_tab = 1;
-    if ($el_data['template_id']) {
-        $current_tab = 3; // Has template, go to cart
-    } elseif ($el_data['form_data']) {
-        $current_tab = 2; // Has client, go to template selection
-    }
-    
-    // Restore cart if it exists
-    if (!empty($el_data['cart_contents']) && class_exists('WooCommerce')) {
-        WC()->cart->empty_cart();
-        foreach ($el_data['cart_contents'] as $item) {
-            WC()->cart->add_to_cart($item['product_id'], $item['quantity']);
-        }
-    }
-    
-    wp_send_json_success([
-        'message' => 'Draft resumed successfully',
-        'engagement_id' => $engagement_id,
-        'form_data' => $el_data['form_data'],
-        'current_tab' => $current_tab,
-    ]);
-}
-
-/**
- * AJAX: Start fresh (clear draft)
- */
-add_action('wp_ajax_el_start_fresh', 'el_handle_start_fresh_draft');
-add_action('wp_ajax_nopriv_el_start_fresh', 'el_handle_start_fresh_draft');
-
-function el_handle_start_fresh_draft() {
-    if (!check_ajax_referer('el_start_fresh', 'nonce', false)) {
-        wp_send_json_error(['message' => 'Security check failed']);
-    }
-    
-    // Clear session
-    if (!session_id()) {
-        // Session already started via init hook
-    }
-    
-    $engagement_id = isset($_SESSION['el_engagement_letter_id']) ? intval($_SESSION['el_engagement_letter_id']) : 0;
-    
-    // Delete the draft engagement letter
-    if ($engagement_id) {
-        wp_delete_post($engagement_id, true);
-    }
-    
-    // Clear all session variables
-    unset($_SESSION['el_engagement_letter_id']);
-    unset($_SESSION['el_current_client_id']);
-    unset($_SESSION['el_client_name']);
-    unset($_SESSION['el_client_email']);
-    unset($_SESSION['el_client_scenario']);
-    unset($_SESSION['el_selected_template']);
-    unset($_SESSION['el_form_data']);
-    
-    // Clear cart
-    if (class_exists('WooCommerce')) {
-        WC()->cart->empty_cart();
-    }
-    
-    wp_send_json_success(['message' => 'Started fresh successfully']);
 }
 
 /**
@@ -6365,7 +5965,32 @@ function el_auto_save_cart_state() {
     }
     
     if (isset($_SESSION['el_current_client_id']) || isset($_SESSION['el_engagement_letter_id'])) {
+        // Save to WooCommerce session
         el_save_cart_state();
+        
+        // Also save to engagement letter CPT
+        $engagement_letter_id = isset($_SESSION['el_engagement_letter_id']) ? intval($_SESSION['el_engagement_letter_id']) : 0;
+        
+        if ($engagement_letter_id && get_post_type($engagement_letter_id) === 'engagement_letter') {
+            if (!WC()->cart) {
+                WC()->initialize_cart();
+            }
+            
+            // Build cart contents array
+            $cart_contents = array();
+            foreach (WC()->cart->get_cart() as $cart_item_key => $cart_item) {
+                $cart_contents[] = array(
+                    'product_id' => $cart_item['product_id'],
+                    'variation_id' => $cart_item['variation_id'] ?? 0,
+                    'quantity' => $cart_item['quantity'],
+                    'product_name' => $cart_item['data']->get_name(),
+                );
+            }
+            
+            // Save to engagement letter
+            update_post_meta($engagement_letter_id, '_el_cart_contents', $cart_contents);
+            update_post_meta($engagement_letter_id, '_el_modified_date', current_time('mysql'));
+        }
     }
 }
 
@@ -8756,56 +8381,167 @@ function el_tab5_simple_php() {
 }
 
 /**
- * Fix for Resume Banner
+ * Resume draft banner shortcode - Only shows on initial page load
  */
-remove_shortcode('el_resume_banner');
-add_shortcode('el_resume_banner', 'el_resume_banner_simple');
+add_shortcode('el_resume_banner', 'el_resume_banner_shortcode');
 
-function el_resume_banner_simple() {
+function el_resume_banner_shortcode() {
     if (!session_id()) {
         session_start();
     }
     
-    $has_session = isset($_SESSION['el_pdf_reference']) && !empty($_SESSION['el_pdf_reference']);
+    // Check if there's a saved engagement letter
+    $engagement_letter_id = isset($_SESSION['el_engagement_letter_id']) ? intval($_SESSION['el_engagement_letter_id']) : 0;
     
-    if (!$has_session) {
-        return ''; // No banner if no session
+    if (!$engagement_letter_id || get_post_type($engagement_letter_id) !== 'engagement_letter') {
+        return ''; // No banner if no saved engagement letter
+    }
+    
+    // Get saved data
+    $el_data = el_get_engagement_letter($engagement_letter_id);
+    $saved_tab = get_post_meta($engagement_letter_id, '_el_current_tab', true) ?: 1;
+    $last_active = get_post_meta($engagement_letter_id, '_el_last_active', true);
+    
+    // Generate tab-specific message
+    $tab_messages = array(
+        1 => 'adding client details',
+        2 => 'selecting a template',
+        3 => 'customizing services',
+        4 => 'reviewing the document',
+        5 => 'finalizing the letter'
+    );
+    
+    $context_message = isset($tab_messages[$saved_tab]) ? $tab_messages[$saved_tab] : 'creating an engagement letter';
+    
+    // Format last active time
+    $time_ago = '';
+    if ($last_active) {
+        $time_diff = human_time_diff(strtotime($last_active), current_time('timestamp'));
+        $time_ago = ' (' . $time_diff . ' ago)';
     }
     
     ob_start();
     ?>
-    <div style="background: #e0f2fe; border: 2px solid #0284c7; border-radius: 8px; padding: 15px; margin: 20px 0;">
-        <div style="display: flex; align-items: center; justify-content: space-between;">
-            <div>
-                <strong style="color: #075985;">📋 Resume Previous Session</strong>
-                <p style="margin: 5px 0 0; color: #0c4a6e;">You have an engagement letter in progress</p>
+    <div class="el-resume-banner" style="background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%); border: 2px solid #0284c7; border-radius: 12px; padding: 20px; margin: 20px 0 30px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+        <div style="display: flex; align-items: center; gap: 20px;">
+            <div style="font-size: 32px;">📋</div>
+            <div style="flex: 1;">
+                <h3 style="margin: 0 0 8px 0; color: #075985; font-size: 18px; font-weight: 600;">Continue Your Engagement Letter</h3>
+                <p style="margin: 0; color: #0c4a6e; font-size: 14px;">
+                    You were <?php echo esc_html($context_message); ?><?php echo esc_html($time_ago); ?>
+                </p>
             </div>
-            <form method="post" style="margin: 0;">
-                <button type="submit" name="skip_to_template" value="1" style="padding: 8px 16px; background: #0284c7; color: white; border: none; border-radius: 4px; cursor: pointer;">
-                    Skip client details and proceed →
+            <div style="display: flex; gap: 10px;">
+                <button class="el-btn-resume-draft" data-engagement-id="<?php echo esc_attr($engagement_letter_id); ?>" style="padding: 12px 24px; background: #0284c7; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px; transition: all 0.3s;">
+                    Continue →
                 </button>
-            </form>
+                <button class="el-btn-start-fresh" style="padding: 12px 24px; background: transparent; color: #0284c7; border: 2px solid #0284c7; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px; transition: all 0.3s;">
+                    Start Fresh
+                </button>
+            </div>
         </div>
     </div>
-    <?php
     
-    // Handle form submission
-    if (isset($_POST['skip_to_template'])) {
-        ?>
-        <script>
-        // Simple redirect to Tab 2 or 3
-        setTimeout(function() {
-            var tab3 = document.querySelector('[data-tab="3"], #brxe-huzwua, .el-tab-3');
-            if (tab3) {
-                tab3.click();
-            } else {
-                alert('Please manually click on Tab 3 to continue');
+    <script>
+    jQuery(document).ready(function($) {
+        // Hide banner after any interaction
+        var bannerDismissed = false;
+        
+        // Resume draft
+        $('.el-btn-resume-draft').on('click', function() {
+            var $btn = $(this);
+            var engagementId = $btn.data('engagement-id');
+            
+            $btn.text('Loading...').prop('disabled', true);
+            
+            $.ajax({
+                url: '<?php echo admin_url('admin-ajax.php'); ?>',
+                type: 'POST',
+                data: {
+                    action: 'el_resume_draft',
+                    engagement_id: engagementId,
+                    nonce: '<?php echo wp_create_nonce('el_resume_draft'); ?>'
+                },
+                success: function(response) {
+                    if (response.success) {
+                        // Hide banner
+                        $('.el-resume-banner').fadeOut();
+                        bannerDismissed = true;
+                        
+                        // Restore form data if exists
+                        if (response.data.form_data) {
+                            var fd = response.data.form_data;
+                            $('#input_1_1_3').val(fd.first_name || '');
+                            $('#input_1_1_6').val(fd.last_name || '');
+                            $('#input_1_2').val(fd.email || '');
+                            $('#input_1_5').val(fd.phone || '');
+                            $('#input_1_6_1').val(fd.street_address || '');
+                            $('#input_1_6_3').val(fd.city || '');
+                            $('#input_1_6_4').val(fd.state || '');
+                            $('#input_1_6_5').val(fd.zip || '');
+                            $('#input_1_6_6').val(fd.country || '');
+                            $('#input_1_7').val(fd.notes || '');
+                        }
+                        
+                        // Navigate to saved tab
+                        var savedTab = response.data.saved_tab || 1;
+                        var tabMap = {
+                            1: '#brxe-kjwfkc',
+                            2: '#brxe-caqeqv',
+                            3: '#brxe-mhedar',
+                            4: '#brxe-ihqhkg',
+                            5: '#brxe-zmmopw'
+                        };
+                        
+                        var $tab = $(tabMap[savedTab]);
+                        if ($tab.length) {
+                            setTimeout(function() {
+                                $tab.click();
+                            }, 500);
+                        }
+                    } else {
+                        alert('Error resuming: ' + (response.data.message || 'Unknown error'));
+                        $btn.text('Continue →').prop('disabled', false);
+                    }
+                },
+                error: function() {
+                    alert('Connection error. Please try again.');
+                    $btn.text('Continue →').prop('disabled', false);
+                }
+            });
+        });
+        
+        // Start fresh
+        $('.el-btn-start-fresh').on('click', function() {
+            if (!confirm('Are you sure? This will delete your draft and start over.')) {
+                return;
             }
-        }, 100);
-        </script>
-        <?php
-    }
-    
+            
+            $.ajax({
+                url: '<?php echo admin_url('admin-ajax.php'); ?>',
+                type: 'POST',
+                data: {
+                    action: 'el_start_fresh',
+                    nonce: '<?php echo wp_create_nonce('el_start_fresh'); ?>'
+                },
+                success: function() {
+                    $('.el-resume-banner').fadeOut();
+                    bannerDismissed = true;
+                    location.reload();
+                }
+            });
+        });
+        
+        // Hide banner on any wizard interaction
+        $(document).on('click', '.brxe-tab, .el-tab-nav, .gform_button, .el-select-template-btn', function() {
+            if (!bannerDismissed) {
+                $('.el-resume-banner').fadeOut();
+                bannerDismissed = true;
+            }
+        });
+    });
+    </script>
+    <?php
     return ob_get_clean();
 }
 
