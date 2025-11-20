@@ -130,6 +130,105 @@ function el_print_editor_enqueue_scripts() {
         ));
     }
 }
+
+
+/**
+ * Central pagination handler - single page version
+ */
+function el_apply_central_pagination($html_content, $options = []) {
+    // Extract style block
+    $style_block = '';
+    if (preg_match('/<style[^>]*>(.*?)<\/style>/is', $html_content, $matches)) {
+        $style_block = $matches[0];
+        $html_content = preg_replace('/<style[^>]*>.*?<\/style>/is', '', $html_content);
+    }
+    
+    // Extract header (letterhead) - but keep it in content too
+    $header_html = '';
+    if (preg_match('/<div[^>]*class="[^"]*letterhead[^"]*"[^>]*>.*?<\/div>/is', $html_content, $matches)) {
+        $header_html = $matches[0];
+        // DON'T remove it from content
+    }
+    
+    // Default options
+    $defaults = [
+        'paper_only' => true,
+        'add_page_signatures' => false,
+        'signature_format' => 'Client signature …………..……………………… Date ………… Page %d/%d',
+        'lines_per_page' => 35,
+        'force_new_page_sections' => false,
+        'keep_signatures_together' => true
+    ];
+    
+    $options = array_merge($defaults, $options);
+    
+    // Use pagination handler (which now returns single page)
+    if (class_exists('EL_Pagination_Handler')) {
+        $result = EL_Pagination_Handler::paginate_content($html_content, $options);
+        $page_count = $result['page_count'];
+        $pages_html = $result['html'];
+    } else {
+        $pages_html = $html_content;
+        $page_count = 1;
+    }
+    
+    // Build final HTML - single page with all content, NO PADDING
+    $final_html = '<div class="print-page" data-page="1">';
+    
+    // Add all content (letterhead is already in it)
+    $final_html .= $pages_html;
+    
+    // Add signature line at bottom
+    if ($options['add_page_signatures']) {
+        $signature_text = sprintf($options['signature_format'], 1, 1);
+        $final_html .= '<div class="el-page-signature">' . esc_html($signature_text) . '</div>';
+    }
+    
+    // Add page footer
+    $final_html .= '<div class="page-footer">';
+    $final_html .= '<div class="page-number">Page 1 of 1</div>';
+    $final_html .= '</div>';
+    
+    $final_html .= '</div>';
+    
+    // Add minimal CSS
+    $print_css = '
+    <style>
+    .print-page {
+        margin: 0;
+        padding: 0;
+    }
+    
+    .el-page-signature {
+        margin-top: 10mm;
+        padding-top: 3mm;
+        border-top: 1px solid #ccc;
+    }
+    
+    .page-footer {
+        margin-top: 5mm;
+        padding-top: 3mm;
+        border-top: 1px solid #ccc;
+        text-align: center;
+    }
+    
+    @media print {
+        @page {
+            size: A4;
+            margin: 0;
+        }
+    }
+    </style>
+    ';
+    
+    // Add style blocks back at the top
+    $final_html = $style_block . $print_css . $final_html;
+
+    return [
+        'html' => $final_html,
+        'page_count' => 1
+    ];
+}
 /**
  * =================================================================
  * ENHANCED PRINT EDITOR INTEGRATION
@@ -218,7 +317,7 @@ add_filter('el_print_editor_html', function($html, $pdf_data) {
             return $paginated_result['html'];
         }
     }
-    
+
     return $html;
 }, 10, 2);
 
@@ -322,7 +421,7 @@ function el_save_client_ajax() {
         return;
     }
     
-    // Start session if not already started
+  // Start session if not already started
     if (!session_id()) {
         session_start();
     }
@@ -386,14 +485,371 @@ function el_save_client_ajax() {
     
     error_log('EL SAVE: Client saved successfully - ID: ' . $existing_client_id);
     
+    // ============================================
+    // CREATE OR UPDATE ENGAGEMENT LETTER POST
+    // ============================================
+    
+    $engagement_letter_id = isset($_SESSION['el_engagement_letter_id']) ? intval($_SESSION['el_engagement_letter_id']) : 0;
+    
+    // Check if engagement letter exists and is valid
+    if (!$engagement_letter_id || get_post_type($engagement_letter_id) !== 'engagement_letter') {
+        
+        // Generate unique reference
+        $reference = 'EL-' . date('Ymd') . '-' . substr(md5(uniqid(rand(), true)), 0, 6);
+        
+        // Create new engagement letter post
+        $engagement_letter_id = wp_insert_post([
+            'post_type'   => 'engagement_letter',
+            'post_title'  => 'Draft - ' . $client_name . ' - ' . date('Y-m-d H:i:s'),
+            'post_status' => 'publish',
+            'post_author' => get_current_user_id() ?: 1
+        ]);
+        
+        if (!is_wp_error($engagement_letter_id)) {
+            // Save initial meta data
+            update_post_meta($engagement_letter_id, '_el_reference', $reference);
+            update_post_meta($engagement_letter_id, 'el_reference', $reference);
+            update_post_meta($engagement_letter_id, '_el_status', 'draft');
+            update_post_meta($engagement_letter_id, 'el_status', 'draft');
+            update_post_meta($engagement_letter_id, '_el_client_id', $existing_client_id);
+            update_post_meta($engagement_letter_id, '_el_lawyer_id', get_current_user_id() ?: 1);
+            update_post_meta($engagement_letter_id, '_el_form_data', $_SESSION['el_form_data']);
+            update_post_meta($engagement_letter_id, '_el_current_tab', 1);
+            update_post_meta($engagement_letter_id, '_el_last_active', current_time('mysql'));
+            update_post_meta($engagement_letter_id, '_el_created_date', current_time('mysql'));
+            
+            // Save to session
+            $_SESSION['el_engagement_letter_id'] = $engagement_letter_id;
+            
+            error_log('✅ EL SAVE: Created engagement letter post ID: ' . $engagement_letter_id);
+        } else {
+            error_log('❌ EL SAVE: Failed to create engagement letter: ' . $engagement_letter_id->get_error_message());
+        }
+    } else {
+        // Update existing engagement letter
+        update_post_meta($engagement_letter_id, '_el_form_data', $_SESSION['el_form_data']);
+        update_post_meta($engagement_letter_id, '_el_client_id', $existing_client_id);
+        update_post_meta($engagement_letter_id, '_el_current_tab', 1);
+        update_post_meta($engagement_letter_id, '_el_last_active', current_time('mysql'));
+        
+        // Update post title with latest client name
+        wp_update_post([
+            'ID' => $engagement_letter_id,
+            'post_title' => 'Draft - ' . $client_name . ' - ' . date('Y-m-d H:i:s')
+        ]);
+        
+        error_log('✅ EL SAVE: Updated existing engagement letter ID: ' . $engagement_letter_id);
+    }
+    
+    // ============================================
+    // END ENGAGEMENT LETTER CREATION
+    // ============================================
+    
     wp_send_json_success([
         'message' => 'Client information saved successfully',
         'client_id' => $existing_client_id,
         'client_name' => $client_name,
+        'engagement_letter_id' => $engagement_letter_id,
         'next_tab' => 2
     ]);
 }
 
+
+/**
+ * Tab 5 - Export & Download with Paged.js
+ * Alternative implementation using Paged.js for client-side pagination
+ */
+
+function el_tab5_pagedjs_php() {
+    // Security check
+    if (!current_user_can('manage_options')) {
+        return '<p>You do not have permission to view this content.</p>';
+    }
+    
+    // Get the saved PDF data from session
+    if (!session_id()) {
+        session_start();
+    }
+    
+    $pdf_reference = isset($_SESSION['el_pdf_reference']) ? $_SESSION['el_pdf_reference'] : '';
+    
+    if (empty($pdf_reference)) {
+        return '<p>No engagement letter found. Please complete the previous steps first.</p>';
+    }
+    
+    // Get PDF data
+    $pdf_data = get_transient('el_pdf_data_' . $pdf_reference);
+    
+    if (!$pdf_data) {
+        return '<p>Engagement letter data not found. Please regenerate the preview.</p>';
+    }
+    
+    // Generate the HTML content
+    $html_content = '';
+    if (function_exists('el_render_engagement_letter_html')) {
+        $html_content = el_render_engagement_letter_html($pdf_data);
+    }
+    
+    ob_start();
+    ?>
+    
+    <div class="el-tab-content el-tab5-content">
+        <!-- Tab Header -->
+        <div class="el-tab-header">
+            <h2>Export & Download - Print Version</h2>
+            <p>Review the paginated document with automatic page signatures</p>
+        </div>
+        
+        <!-- Controls -->
+        <div class="el-print-controls">
+            <label class="el-paper-toggle">
+                <input type="checkbox" id="paper-only-toggle" checked>
+                <span>Paper-only mode (with page signatures)</span>
+            </label>
+            
+            <div class="el-print-actions">
+                <button type="button" id="el-download-pdf" class="button button-primary">
+                    <span class="dashicons dashicons-download"></span> Download PDF
+                </button>
+                <button type="button" id="el-print-preview" class="button">
+                    <span class="dashicons dashicons-printer"></span> Print Preview
+                </button>
+            </div>
+        </div>
+        
+        <!-- Document Container for Paged.js -->
+        <div id="paged-document" class="pagedjs-document">
+            <?php echo $html_content; ?>
+        </div>
+    </div>
+    
+    <!-- Load Paged.js from CDN -->
+    <script src="https://unpkg.com/pagedjs@0.4.3/dist/paged.min.js"></script>
+    
+    <style>
+        /* Tab 5 specific styles */
+        .el-tab5-content {
+            padding: 20px;
+            background: #f9f9f9;
+        }
+        
+        .el-tab-header {
+            margin-bottom: 30px;
+        }
+        
+        .el-tab-header h2 {
+            margin: 0 0 10px;
+            color: #23282d;
+        }
+        
+        .el-print-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        .el-paper-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+        
+        .el-print-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        /* Paged.js container */
+        .pagedjs_pages {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            align-items: center;
+            padding: 20px;
+            background: #e0e0e0;
+            overflow-x: auto;
+        }
+        
+        .pagedjs_page {
+            background: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        
+        /* Hide page signatures by default, show when paper-only is checked */
+        .page-signature-line {
+            display: none;
+            position: absolute;
+            bottom: 25mm;
+            left: 25mm;
+            right: 25mm;
+            text-align: center;
+            font-size: 10pt;
+            color: #333;
+            border-top: 1px solid #999;
+            padding-top: 5mm;
+        }
+        
+        body.paper-only .page-signature-line {
+            display: block;
+        }
+        
+        /* Paged Media styles */
+        @page {
+            size: A4;
+            margin: 25mm;
+            
+            @bottom-center {
+                content: none; /* We'll add signatures via JavaScript */
+            }
+        }
+        
+        /* Content styles from engagement letter */
+        .engagement-letter {
+            font-family: 'Times New Roman', serif;
+            font-size: 12pt;
+            line-height: 1.5;
+            color: #000;
+        }
+        
+        .engagement-letter h1,
+        .engagement-letter h2,
+        .engagement-letter h3 {
+            font-weight: bold;
+            margin-top: 1em;
+            margin-bottom: 0.5em;
+        }
+        
+        .engagement-letter h1 { font-size: 16pt; }
+        .engagement-letter h2 { font-size: 14pt; }
+        .engagement-letter h3 { font-size: 12pt; }
+        
+        /* Pagination rules */
+        h1, h2, h3 {
+            break-after: avoid;
+        }
+        
+        p {
+            orphans: 2;
+            widows: 2;
+        }
+        
+        table, figure {
+            break-inside: avoid;
+        }
+        
+        /* Signature blocks should stay together */
+        .signature-block {
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+    </style>
+    
+    <script>
+    jQuery(document).ready(function($) {
+        let paged = null;
+        
+        // Paged.js class for handling page signatures
+        class PageSignatures extends Paged.Handler {
+            constructor(chunker, polisher, caller) {
+                super(chunker, polisher, caller);
+            }
+            
+            afterPageLayout(pageElement, page, breakToken) {
+                // Only add signatures if paper-only mode is active
+                if (!document.body.classList.contains('paper-only')) {
+                    return;
+                }
+                
+                // Don't add signature to the last page
+                const totalPages = document.querySelectorAll('.pagedjs_page').length;
+                if (page.number === totalPages) {
+                    return;
+                }
+                
+                // Create signature line
+                const signature = document.createElement('div');
+                signature.className = 'page-signature-line';
+                signature.innerHTML = `Client signature …………..……………………… Date ………… Page ${page.number}/${totalPages}`;
+                
+                // Add to page
+                const pageArea = pageElement.querySelector('.pagedjs_page_content');
+                if (pageArea) {
+                    pageArea.appendChild(signature);
+                }
+            }
+        }
+        
+        // Register the handler
+        Paged.registerHandlers(PageSignatures);
+        
+        // Initialize Paged.js
+        function initializePaged() {
+            // Add paper-only class if checkbox is checked
+            if ($('#paper-only-toggle').is(':checked')) {
+                $('body').addClass('paper-only');
+            } else {
+                $('body').removeClass('paper-only');
+            }
+            
+            // Preview the document
+            paged = new Paged.Previewer();
+            paged.preview().then(() => {
+                console.log('Paged.js rendering complete');
+                updatePageCount();
+            });
+        }
+        
+        // Update page count after rendering
+        function updatePageCount() {
+            const totalPages = document.querySelectorAll('.pagedjs_page').length;
+            console.log('Total pages:', totalPages);
+            
+            // Update all page signatures with correct total
+            if ($('body').hasClass('paper-only')) {
+                $('.page-signature-line').each(function(index) {
+                    if (index < totalPages - 1) { // Not on last page
+                        $(this).html(`Client signature …………..……………………… Date ………… Page ${index + 1}/${totalPages}`);
+                    }
+                });
+            }
+        }
+        
+        // Paper-only toggle handler
+        $('#paper-only-toggle').on('change', function() {
+            // Clear existing preview
+            $('.pagedjs_pages').remove();
+            
+            // Re-render with new settings
+            initializePaged();
+        });
+        
+        // Download PDF handler
+        $('#el-download-pdf').on('click', function() {
+            window.print();
+        });
+        
+        // Print preview handler
+        $('#el-print-preview').on('click', function() {
+            window.print();
+        });
+        
+        // Initialize on load
+        initializePaged();
+    });
+    </script>
+    
+    <?php
+    return ob_get_clean();
+}
+
+// Register shortcode
+add_shortcode('el_print_editor_pagedjs', 'el_tab5_pagedjs_php');
 /**
  * =================================================================
  * PART 2: ENHANCED JAVASCRIPT FOR FORM HANDLING & NAVIGATION
@@ -1296,67 +1752,75 @@ function el_pdf_preview_script() {
                     '</div>'
                 );
             }
+           // First ensure cart is refreshed - ASYNC VERSION
+$.ajax({
+    url: '<?php echo admin_url('admin-ajax.php'); ?>',
+    type: 'POST',
+    data: {
+        action: 'el_refresh_cart_session',
+        nonce: '<?php echo wp_create_nonce('el_refresh'); ?>'
+    }
+}).done(function(response) {
+    console.log('✅ Cart refreshed before PDF generation');
+    
+    // Now generate PDF after cart is refreshed
+    $.ajax({
+        url: '<?php echo admin_url('admin-ajax.php'); ?>',
+        type: 'POST',
+        dataType: 'json',
+        data: {
+            action: 'el_generate_pdf_preview',
+            nonce: '<?php echo wp_create_nonce('el_nonce'); ?>',
+            source: 'auto_shortcode'
+        },
+        success: function(response) {
+            console.log('✅ PDF preview response:', response);
             
-            // First ensure cart is refreshed
-            $.ajax({
-                url: '<?php echo admin_url('admin-ajax.php'); ?>',
-                type: 'POST',
-                async: false, // Wait for cart refresh
-                data: {
-                    action: 'el_refresh_cart_session',
-                    nonce: '<?php echo wp_create_nonce('el_refresh'); ?>'
-                },
-                success: function(response) {
-                    console.log('✅ Cart refreshed before PDF generation');
-                }
-            });
+            if (response.success && response.data && response.data.html) {
+                $container.hide().html(response.data.html).fadeIn(500);
+                window.elPdfReference = response.data.reference;
+                window.currentPDFData = response.data; // For Tab 5
+                console.log('✅ Preview loaded successfully');
+            } else {
+                var errorMsg = response.data && response.data.message ? response.data.message : 'Please ensure you have items in your cart';
+                pdfGenerated = false; // Allow retry
+                
+                $container.html(
+                    '<div style="padding: 40px; text-align: center; background: #fef2f2; border: 2px solid #fca5a5; border-radius: 8px; margin: 20px;">' +
+                    '<p style="color: #dc2626; font-size: 18px; font-weight: 600; margin-bottom: 10px;">⚠️ Could not generate preview</p>' +
+                    '<p style="color: #6b7280; margin-bottom: 20px;">' + errorMsg + '</p>' +
+                    '<button onclick="retryPDFGeneration()" style="padding: 10px 24px; background: #3b82f6; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer;">🔄 Try Again</button>' +
+                    '</div>'
+                );
+            }
+        },
+        error: function(xhr, status, error) {
+            console.error('❌ AJAX Error:', error);
+            pdfGenerated = false; // Allow retry
             
-            // Now generate PDF
-            $.ajax({
-                url: '<?php echo admin_url('admin-ajax.php'); ?>',
-                type: 'POST',
-                dataType: 'json',
-                data: {
-                    action: 'el_generate_pdf_preview',
-                    nonce: '<?php echo wp_create_nonce('el_nonce'); ?>',
-                    source: 'auto_shortcode'
-                },
-                success: function(response) {
-                    console.log('✅ PDF preview response:', response);
-                    
-                    if (response.success && response.data && response.data.html) {
-                        $container.hide().html(response.data.html).fadeIn(500);
-                        window.elPdfReference = response.data.reference;
-                        window.currentPDFData = response.data; // For Tab 5
-                        console.log('✅ Preview loaded successfully');
-                    } else {
-                        var errorMsg = response.data && response.data.message ? response.data.message : 'Please ensure you have items in your cart';
-                        pdfGenerated = false; // Allow retry
-                        
-                        $container.html(
-                            '<div style="padding: 40px; text-align: center; background: #fef2f2; border: 2px solid #fca5a5; border-radius: 8px; margin: 20px;">' +
-                            '<p style="color: #dc2626; font-size: 18px; font-weight: 600; margin-bottom: 10px;">⚠️ Could not generate preview</p>' +
-                            '<p style="color: #6b7280; margin-bottom: 20px;">' + errorMsg + '</p>' +
-                            '<button onclick="retryPDFGeneration()" style="padding: 10px 24px; background: #3b82f6; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer;">🔄 Try Again</button>' +
-                            '</div>'
-                        );
-                    }
-                },
-                error: function(xhr, status, error) {
-                    console.error('❌ AJAX Error:', error);
-                    pdfGenerated = false; // Allow retry
-                    
-                    $container.html(
-                        '<div style="padding: 40px; text-align: center; background: #fef2f2; border: 2px solid #fca5a5; border-radius: 8px; margin: 20px;">' +
-                        '<p style="color: #dc2626; font-size: 18px; font-weight: 600; margin-bottom: 10px;">⚠️ Connection error</p>' +
-                        '<p style="color: #6b7280; margin-bottom: 20px;">Please check your connection and try again</p>' +
-                        '<button onclick="location.reload()" style="padding: 10px 24px; background: #3b82f6; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer;">🔄 Reload Page</button>' +
-                        '</div>'
-                    );
-                }
-            });
+            $container.html(
+                '<div style="padding: 40px; text-align: center; background: #fef2f2; border: 2px solid #fca5a5; border-radius: 8px; margin: 20px;">' +
+                '<p style="color: #dc2626; font-size: 18px; font-weight: 600; margin-bottom: 10px;">⚠️ Connection error</p>' +
+                '<p style="color: #6b7280; margin-bottom: 20px;">Please check your connection and try again</p>' +
+                '<button onclick="location.reload()" style="padding: 10px 24px; background: #3b82f6; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer;">🔄 Reload Page</button>' +
+                '</div>'
+            );
         }
-        
+    });
+    
+}).fail(function() {
+    console.error('❌ Cart refresh failed');
+    pdfGenerated = false;
+    
+    $container.html(
+        '<div style="padding: 40px; text-align: center; background: #fef2f2; border: 2px solid #fca5a5; border-radius: 8px; margin: 20px;">' +
+        '<p style="color: #dc2626; font-size: 18px; font-weight: 600; margin-bottom: 10px;">⚠️ Could not refresh cart</p>' +
+        '<p style="color: #6b7280; margin-bottom: 20px;">Please try again</p>' +
+        '<button onclick="location.reload()" style="padding: 10px 24px; background: #3b82f6; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer;">🔄 Reload Page</button>' +
+        '</div>'
+    );
+});
+}
         // Make retry function globally available
         window.retryPDFGeneration = function() {
             pdfGenerated = false;
@@ -1420,6 +1884,8 @@ add_action('wp_ajax_el_generate_pdf_preview', function() {
         error_log('Cart items available: ' . count(WC()->cart->get_cart()));
     }
 }, 5);
+
+
   /**
  * =================================================================
  * AJAX Handler: Add Template to Cart
@@ -7694,7 +8160,7 @@ function el_render_print_ready_html($pdf_data) {
     // Build CSS as a string to prevent WordPress from mangling it
     $print_css = <<<CSS
 /* A4 Print-Perfect Styles */
-@page { size: A4 portrait; margin: 20mm 15mm 25mm 15mm; }
+@page { size: A4 portrait; margin: 5mm 15mm 25mm 15mm; }
 
 * { 
     margin: 0; 
@@ -7729,7 +8195,7 @@ CSS;
     padding: 0;
     background: white;
     position: relative;
-    margin: 0 auto 20mm auto;
+    margin: 0 auto 5mm auto;
     box-shadow: 0 2px 10px rgba(0,0,0,0.1);
     page-break-after: always;
     overflow: visible;
@@ -8242,10 +8708,7 @@ function el_handle_diagnostic() {
     wp_send_json_success($diagnostics);
 }
 
-/**
- * DIAGNOSTIC VERSION - Tab 5 with detailed error reporting
- * This will show exactly what's failing
- */
+
 
 // Remove old shortcode if it exists
 remove_shortcode('el_pdf_export_auto');
@@ -8259,126 +8722,210 @@ function el_tab5_simple_php() {
         session_start();
     }
     
-    // Check for document
+    // Get PDF reference from session (set by Tab 4)
     $reference = isset($_SESSION['el_pdf_reference']) ? $_SESSION['el_pdf_reference'] : '';
     $pdf_data = null;
     $html_content = '';
-    $has_document = false;
     
+    // Try to get PDF data
     if (!empty($reference)) {
         $pdf_data = get_transient('el_pdf_data_' . $reference);
-        $has_document = !empty($pdf_data);
     }
     
-    // If we have a document, generate the HTML server-side
-    if ($has_document) {
-        $preview_file = get_stylesheet_directory() . '/preview-inline.php';
-        
-        if (file_exists($preview_file)) {
-            require_once $preview_file;
-            
-            if (function_exists('el_render_engagement_letter_html')) {
-                $html_content = el_render_engagement_letter_html($pdf_data);
-                
-                // Add print styles inline
-                $print_styles = '<style>
-                    * { font-family: "Times New Roman", Times, serif !important; }
-                    body, p, div, span, h1, h2, h3, h4, h5, h6 { color: #000 !important; }
-                    [class*="bg-"] { background: white !important; }
-                    [class*="text-"] { color: #000 !important; }
-                    [class*="border"] { border-color: #000 !important; }
-                    .service-item { border: 1px solid #000 !important; background: white !important; }
-                    a { color: #000 !important; text-decoration: none !important; }
-                    button, .button { display: none !important; }
-                </style>';
-                
-                $html_content = $print_styles . $html_content;
-            } else {
-                // Basic fallback
-                $html_content = '<div style="padding: 40px; font-family: Times New Roman, serif;">';
-                $html_content .= '<h1>Engagement Letter</h1>';
-                $html_content .= '<p>Reference: ' . esc_html($reference) . '</p>';
-                $html_content .= '<p>Client: ' . esc_html($pdf_data['client']['name'] ?? 'N/A') . '</p>';
-                $html_content .= '</div>';
-            }
-        }
-    }
+    // Check if user can edit
+    $can_edit = current_user_can('edit_posts');
     
     ob_start();
-    ?>
+    ?>  
     
-    <?php if (!$has_document): ?>
-    <!-- No Document - Show Instructions -->
-    <div style="max-width: 800px; margin: 40px auto; padding: 20px;">
-        <div style="background: #fff7ed; border: 2px solid #fb923c; border-radius: 12px; padding: 30px;">
-            <h2 style="color: #ea580c;">📋 No Document Ready</h2>
-            <p>To create a print document, please:</p>
-            <ol>
+    <div id="el-tab5-wrapper" style="width: 100%; padding: 20px;">
+        
+        <?php if (empty($pdf_data)): ?>
+        
+        <!-- No Document Found -->
+        <div style="background: #fff7ed; border: 2px solid #fb923c; border-radius: 12px; padding: 40px; text-align: center;">
+            <h2 style="color: #ea580c; margin: 0 0 20px 0;">📋 No Document Ready</h2>
+            <p style="margin: 0 0 10px 0; font-size: 16px;">Please complete the previous steps first:</p>
+            <ol style="text-align: left; max-width: 400px; margin: 20px auto; line-height: 2;">
                 <li>Fill in client details (Tab 1)</li>
-                <li>Select services (Tab 2)</li>
-                <li>Click "Preview Engagement Letter" (Tab 3)</li>
-                <li>Wait for preview to load (Tab 4)</li>
-                <li>Return here for print version</li>
+                <li>Select template (Tab 2)</li>
+                <li>Customize services (Tab 3)</li>
+                <li><strong>Generate preview (Tab 4)</strong></li>
             </ol>
-            <form method="post" style="margin-top: 20px;">
-                <button type="submit" name="refresh_tab5" style="padding: 10px 20px; background: #10b981; color: white; border: none; border-radius: 6px; cursor: pointer;">
+            <p style="margin-top: 20px;">
+                <button onclick="location.reload()" style="padding: 12px 24px; background: #10b981; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 15px; font-weight: 600;">
                     🔄 Check Again
                 </button>
-            </form>
-        </div>
-    </div>
-    
-    <?php else: ?>
-    <!-- Document Ready - Show Print Version -->
-    <div style="max-width: 210mm; margin: 0 auto; padding: 20px;">
-        <!-- Toolbar -->
-        <div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <div>
-                    <h2 style="margin: 0;">📄 Print-Ready Document</h2>
-                    <p style="margin: 5px 0 0; color: #666; font-size: 14px;">
-                        Reference: <?php echo esc_html($reference); ?> | 
-                        Client: <?php echo esc_html($pdf_data['client']['name'] ?? 'N/A'); ?>
-                    </p>
-                </div>
-                <div>
-                    <button onclick="window.print()" style="padding: 10px 20px; background: #3b82f6; color: white; border: none; border-radius: 6px; cursor: pointer;">
-                        🖨️ Print
-                    </button>
-                    <form method="post" style="display: inline;">
-                        <button type="submit" name="refresh_tab5" style="padding: 10px 20px; background: #6b7280; color: white; border: none; border-radius: 6px; cursor: pointer;">
-                            🔄 Refresh
-                        </button>
-                    </form>
-                </div>
-            </div>
+            </p>
         </div>
         
-        <!-- Print Content -->
-        <div id="print-content" style="background: white; padding: 40px; box-shadow: 0 0 20px rgba(0,0,0,0.1); font-family: 'Times New Roman', serif; font-size: 11pt; line-height: 1.5; color: #000;">
+        <?php else: 
+            
+// RENDER THE PAPER ENGAGEMENT LETTER
+$preview_file = get_stylesheet_directory() . '/preview-inline.php';
+
+if (file_exists($preview_file)) {
+    require_once $preview_file;
+    
+if (function_exists('el_render_engagement_letter_html')) {
+    // Generate base HTML from template
+    $html_content = el_render_engagement_letter_html($pdf_data);
+    
+    // Apply central pagination
+    $result = el_apply_central_pagination($html_content);
+    $html_content = $result['html'];
+    $total_pages = $result['page_count'];
+    
+} else {
+    $html_content = '<p style="color: red;">Template rendering function not found.</p>';
+}
+} else {
+    $html_content = '<p style="color: red;">Template file not found: preview-inline.php</p>';
+}
+?>
+        
+        <!-- Toolbar -->
+        <div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+                <div>
+                    <h2 style="margin: 0 0 5px 0; font-size: 20px; color: #1a1a2e;">📄 Paper Engagement Letter</h2>
+                    <p style="margin: 0; color: #666; font-size: 14px;">
+                        Reference: <strong><?php echo esc_html($reference); ?></strong>
+                        <?php if (isset($total_pages)): ?>
+                         | Pages: <strong><?php echo $total_pages; ?></strong>
+                        <?php endif; ?>
+                    </p>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button onclick="window.print()" style="padding: 10px 20px; background: #3b82f6; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                        🖨️ Print
+                    </button>
+                    <?php if ($can_edit): ?>
+                    <button id="save-edits-btn" style="padding: 10px 20px; background: #10b981; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                        💾 Save
+                    </button>
+                    <?php endif; ?>
+                    <button onclick="location.reload()" style="padding: 10px 20px; background: #6b7280; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                        🔄 Refresh
+                    </button>
+                </div>
+            </div>
+            <?php if ($can_edit): ?>
+            <p id="save-status" style="margin: 10px 0 0 0; font-size: 14px; color: #666;"></p>
+            <?php endif; ?>
+        </div>
+        
+        <!-- Paper Document -->
+        <div id="paper-document" <?php echo $can_edit ? 'contenteditable="true"' : ''; ?> style="background: white; padding: 0; box-shadow: 0 0 20px rgba(0,0,0,0.1); font-family: 'Times New Roman', serif; font-size: 11pt; line-height: 1.5; color: #000; min-height: 297mm;">
             <?php echo $html_content; ?>
         </div>
+        
+        <?php if ($can_edit): ?>
+        <script>
+        jQuery(document).ready(function($) {
+            $('#save-edits-btn').on('click', function() {
+                var $btn = $(this);
+                var $status = $('#save-status');
+                var editedContent = $('#paper-document').html();
+                
+                $btn.text('Saving...').prop('disabled', true);
+                $status.text('');
+                
+                $.ajax({
+                    url: '<?php echo admin_url('admin-ajax.php'); ?>',
+                    type: 'POST',
+                    data: {
+                        action: 'el_save_paper_edits',
+                        reference: '<?php echo esc_js($reference); ?>',
+                        content: editedContent,
+                        nonce: '<?php echo wp_create_nonce('el_nonce'); ?>'
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            $status.text('✅ Saved successfully!').css('color', '#10b981');
+                            $btn.text('💾 Save').prop('disabled', false);
+                        } else {
+                            $status.text('❌ Error: ' + (response.data.message || 'Unknown error')).css('color', '#ef4444');
+                            $btn.text('💾 Save').prop('disabled', false);
+                        }
+                    },
+                    error: function() {
+                        $status.text('❌ Connection error').css('color', '#ef4444');
+                        $btn.text('💾 Save').prop('disabled', false);
+                    }
+                });
+            });
+        });
+console.log('Pagination applied:', <?php echo json_encode($total_pages); ?>);
+
+        </script>
+        <?php endif; ?>
+        
+        <?php endif; // end if pdf_data exists ?>
+        
     </div>
     
+<style>
     <style>
-    @media print {
-        body * { visibility: hidden; }
-        #print-content, #print-content * { visibility: visible; }
-        #print-content { 
-            position: absolute; 
-            left: 0; 
-            top: 0;
-            width: 210mm;
-            padding: 20mm !important;
-        }
-        button { display: none !important; }
+/* Minimal Tab 5 wrapper styles only */
+#el-tab5-wrapper {
+    width: 100%;
+    max-width: 100%;
+}
+
+/* Print-specific overrides */
+@media print {
+    body * { 
+        visibility: hidden; 
     }
-    </style>
-    <?php endif; ?>
+    
+    #paper-document, #paper-document * { 
+        visibility: visible; 
+    }
+    
+    #paper-document {
+        position: absolute;
+        left: 0;
+        top: 0;
+        right: 0;
+        width: auto !important;
+    }
+    
+    #el-tab5-wrapper > *:not(#paper-document) { 
+        display: none !important; 
+    }
+}
+/* Visual page separation on screen */
+@media screen {
+    .el-page {
+        background: white;
+        margin: 20px auto;
+        padding: 15mm;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        border: 1px solid #ddd;
+        page-break-after: always;
+    }
+    
+    .el-page:first-child {
+        margin-top: 0;
+    }
+    
+    .el-page-signature {
+        display: block !important;
+        margin-top: 20mm;
+        padding-top: 5mm;
+        border-top: 1px solid #ccc;
+        text-align: center;
+        font-size: 10pt;
+        color: #666;
+    }
+}
+</style>
     
     <?php
     return ob_get_clean();
 }
+
 
 /**
  * Resume draft banner shortcode - Only shows on initial page load
@@ -8399,10 +8946,16 @@ function el_resume_banner_shortcode() {
     
     // Get saved data
     $el_data = el_get_engagement_letter($engagement_letter_id);
+    
+    if (!$el_data || $el_data['status'] !== 'draft') {
+        return ''; // Not a draft or doesn't exist
+    }
+    
+    // Get saved tab position and last active time
     $saved_tab = get_post_meta($engagement_letter_id, '_el_current_tab', true) ?: 1;
     $last_active = get_post_meta($engagement_letter_id, '_el_last_active', true);
     
-    // Generate tab-specific message
+    // Generate tab-specific context message
     $tab_messages = array(
         1 => 'adding client details',
         2 => 'selecting a template',
@@ -8422,20 +8975,111 @@ function el_resume_banner_shortcode() {
     
     ob_start();
     ?>
-    <div class="el-resume-banner" style="background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%); border: 2px solid #0284c7; border-radius: 12px; padding: 20px; margin: 20px 0 30px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
-        <div style="display: flex; align-items: center; gap: 20px;">
-            <div style="font-size: 32px;">📋</div>
-            <div style="flex: 1;">
-                <h3 style="margin: 0 0 8px 0; color: #075985; font-size: 18px; font-weight: 600;">Continue Your Engagement Letter</h3>
-                <p style="margin: 0; color: #0c4a6e; font-size: 14px;">
-                    You were <?php echo esc_html($context_message); ?><?php echo esc_html($time_ago); ?>
+    <div class="el-resume-banner" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; padding: 24px; margin-bottom: 30px; box-shadow: 0 4px 24px rgba(102, 126, 234, 0.25); animation: el-slide-down 0.4s ease-out;">
+        <style>
+        @keyframes el-slide-down {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .el-resume-banner-inner {
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            gap: 20px;
+            align-items: center;
+        }
+        
+        .el-resume-icon {
+            font-size: 48px;
+            line-height: 1;
+        }
+        
+        .el-resume-content {
+            color: #ffffff;
+        }
+        
+        .el-resume-title {
+            margin: 0 0 8px 0;
+            font-size: 20px;
+            font-weight: 700;
+            color: #ffffff;
+        }
+        
+        .el-resume-details {
+            margin: 0;
+            font-size: 15px;
+            color: rgba(255, 255, 255, 0.9);
+        }
+        
+        .el-resume-actions {
+            display: flex;
+            gap: 12px;
+        }
+        
+        .el-resume-btn {
+            padding: 12px 24px;
+            font-size: 15px;
+            font-weight: 600;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .el-btn-resume-draft {
+            background: #ffffff;
+            color: #667eea;
+        }
+        
+        .el-btn-resume-draft:hover {
+            background: #f0f0f0;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+        
+        .el-btn-start-fresh {
+            background: transparent;
+            color: #ffffff;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+        }
+        
+        .el-btn-start-fresh:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.5);
+        }
+        
+        @media (max-width: 768px) {
+            .el-resume-banner-inner {
+                grid-template-columns: 1fr;
+                text-align: center;
+            }
+            
+            .el-resume-actions {
+                justify-content: center;
+                flex-wrap: wrap;
+            }
+        }
+        </style>
+        
+        <div class="el-resume-banner-inner">
+            <div class="el-resume-icon">📋</div>
+            <div class="el-resume-content">
+                <h3 class="el-resume-title">Continue Your Engagement Letter</h3>
+                <p class="el-resume-details">
+                    You were <strong><?php echo esc_html($context_message); ?></strong><?php echo esc_html($time_ago); ?>
                 </p>
             </div>
-            <div style="display: flex; gap: 10px;">
-                <button class="el-btn-resume-draft" data-engagement-id="<?php echo esc_attr($engagement_letter_id); ?>" style="padding: 12px 24px; background: #0284c7; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px; transition: all 0.3s;">
+            <div class="el-resume-actions">
+                <button type="button" class="el-resume-btn el-btn-resume-draft" data-engagement-id="<?php echo esc_attr($engagement_letter_id); ?>" data-saved-tab="<?php echo esc_attr($saved_tab); ?>">
                     Continue →
                 </button>
-                <button class="el-btn-start-fresh" style="padding: 12px 24px; background: transparent; color: #0284c7; border: 2px solid #0284c7; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px; transition: all 0.3s;">
+                <button type="button" class="el-resume-btn el-btn-start-fresh">
                     Start Fresh
                 </button>
             </div>
@@ -8444,13 +9088,13 @@ function el_resume_banner_shortcode() {
     
     <script>
     jQuery(document).ready(function($) {
-        // Hide banner after any interaction
         var bannerDismissed = false;
         
         // Resume draft
         $('.el-btn-resume-draft').on('click', function() {
             var $btn = $(this);
             var engagementId = $btn.data('engagement-id');
+            var savedTab = $btn.data('saved-tab');
             
             $btn.text('Loading...').prop('disabled', true);
             
@@ -8464,11 +9108,13 @@ function el_resume_banner_shortcode() {
                 },
                 success: function(response) {
                     if (response.success) {
+                        console.log('✅ Draft resumed:', response.data);
+                        
                         // Hide banner
-                        $('.el-resume-banner').fadeOut();
+                        $('.el-resume-banner').fadeOut(300);
                         bannerDismissed = true;
                         
-                        // Restore form data if exists
+                        // Populate Tab 1 form if we have data
                         if (response.data.form_data) {
                             var fd = response.data.form_data;
                             $('#input_1_1_3').val(fd.first_name || '');
@@ -8483,8 +9129,8 @@ function el_resume_banner_shortcode() {
                             $('#input_1_7').val(fd.notes || '');
                         }
                         
-                        // Navigate to saved tab
-                        var savedTab = response.data.saved_tab || 1;
+                        // Navigate to the exact saved tab
+                        var resumeTab = response.data.saved_tab || savedTab || 1;
                         var tabMap = {
                             1: '#brxe-kjwfkc',
                             2: '#brxe-caqeqv',
@@ -8493,14 +9139,14 @@ function el_resume_banner_shortcode() {
                             5: '#brxe-zmmopw'
                         };
                         
-                        var $tab = $(tabMap[savedTab]);
+                        var $tab = $(tabMap[resumeTab]);
                         if ($tab.length) {
                             setTimeout(function() {
                                 $tab.click();
                             }, 500);
                         }
                     } else {
-                        alert('Error resuming: ' + (response.data.message || 'Unknown error'));
+                        alert('Error resuming draft: ' + (response.data.message || 'Unknown error'));
                         $btn.text('Continue →').prop('disabled', false);
                     }
                 },
@@ -8513,9 +9159,12 @@ function el_resume_banner_shortcode() {
         
         // Start fresh
         $('.el-btn-start-fresh').on('click', function() {
-            if (!confirm('Are you sure? This will delete your draft and start over.')) {
+            if (!confirm('Are you sure? Your draft will be permanently deleted.')) {
                 return;
             }
+            
+            var $btn = $(this);
+            $btn.text('Clearing...').prop('disabled', true);
             
             $.ajax({
                 url: '<?php echo admin_url('admin-ajax.php'); ?>',
@@ -8524,18 +9173,37 @@ function el_resume_banner_shortcode() {
                     action: 'el_start_fresh',
                     nonce: '<?php echo wp_create_nonce('el_start_fresh'); ?>'
                 },
-                success: function() {
-                    $('.el-resume-banner').fadeOut();
-                    bannerDismissed = true;
-                    location.reload();
+                success: function(response) {
+                    if (response.success) {
+                        console.log('✅ Started fresh');
+                        $('.el-resume-banner').fadeOut(300, function() {
+                            $(this).remove();
+                        });
+                        bannerDismissed = true;
+                        
+                        // Clear form fields
+                        $('.gform_wrapper input[type="text"], .gform_wrapper input[type="email"], .gform_wrapper textarea').val('');
+                        
+                        // Navigate to Tab 1
+                        setTimeout(function() {
+                            $('#brxe-kjwfkc').click();
+                        }, 400);
+                    } else {
+                        alert('Error: ' + (response.data.message || 'Unknown error'));
+                        $btn.text('Start Fresh').prop('disabled', false);
+                    }
+                },
+                error: function() {
+                    alert('Connection error. Please try again.');
+                    $btn.text('Start Fresh').prop('disabled', false);
                 }
             });
         });
         
-        // Hide banner on any wizard interaction
-        $(document).on('click', '.brxe-tab, .el-tab-nav, .gform_button, .el-select-template-btn', function() {
+        // Auto-hide banner on any wizard interaction
+        $(document).on('click', '.brxe-tab, .el-tab-nav, .gform_button, .el-select-template-btn, [data-tab]', function() {
             if (!bannerDismissed) {
-                $('.el-resume-banner').fadeOut();
+                $('.el-resume-banner').fadeOut(300);
                 bannerDismissed = true;
             }
         });

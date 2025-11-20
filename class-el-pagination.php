@@ -70,10 +70,10 @@ class EL_Pagination_Handler {
             $page_num = $index + 1;
             
             // Add page wrapper
-            $paginated_html .= sprintf(
-                '<div class="el-page" data-page="%d" style="page-break-after: always; min-height: 297mm; padding: 20mm; box-sizing: border-box;">',
-                $page_num
-            );
+         $paginated_html .= sprintf(
+    '<div class="el-page" data-page="%d">',
+    $page_num
+);
             
             // Add page content
             $paginated_html .= $page_content;
@@ -81,10 +81,10 @@ class EL_Pagination_Handler {
             // Add page signature if enabled
             if ($options['add_page_signatures']) {
                 $signature_text = sprintf($options['signature_format'], $page_num, $total_pages);
-                $paginated_html .= sprintf(
-                    '<div class="el-page-signature" style="position: absolute; bottom: 20mm; left: 20mm; right: 20mm; font-size: 10pt; color: #333;">%s</div>',
-                    esc_html($signature_text)
-                );
+               $paginated_html .= sprintf(
+    '<div class="el-page-signature">%s</div>',
+    esc_html($signature_text)
+);
             }
             
             $paginated_html .= '</div>';
@@ -97,58 +97,22 @@ class EL_Pagination_Handler {
         ];
     }
     
-    /**
-     * Split content into pages
-     */
-    private static function split_into_pages($dom, $options) {
-        $pages = [];
-        $current_page = '';
-        $current_lines = 0;
-        
-        // Get body content
-        $wrapper = $dom->getElementById('el-content-wrapper');
-        if (!$wrapper) {
-            return [$dom->saveHTML()];
-        }
-        
-        // Process each child node
-        foreach ($wrapper->childNodes as $node) {
-            $node_html = $dom->saveHTML($node);
-            $node_lines = self::estimate_lines($node_html);
-            
-            // Check if we need a new page
-            if ($current_lines + $node_lines > $options['lines_per_page']) {
-                // Save current page if it has minimum content
-                if ($current_lines >= $options['min_lines_per_page']) {
-                    $pages[] = $current_page;
-                    $current_page = '';
-                    $current_lines = 0;
-                }
-            }
-            
-            // Add node to current page
-            $current_page .= $node_html;
-            $current_lines += $node_lines;
-            
-            // Force new page for section headers if enabled
-            if ($options['force_new_page_sections'] && self::is_section_header($node)) {
-                if (!empty($current_page)) {
-                    $pages[] = $current_page;
-                    $current_page = '';
-                    $current_lines = 0;
-                }
-            }
-        }
-        
-        // Add remaining content
-        if (!empty($current_page)) {
-            $pages[] = $current_page;
-        }
-        
-        return $pages;
+private static function split_into_pages($dom, $options) {
+    // Get the body
+    $body = $dom->getElementsByTagName('body')->item(0);
+    if (!$body) {
+        return [$dom->saveHTML()];
     }
     
-    /**
+    // Convert entire body to string
+    $body_html = '';
+    foreach ($body->childNodes as $child) {
+        $body_html .= $dom->saveHTML($child);
+    }
+    
+    // FOR NOW: Return everything as single page
+    return [$body_html];
+}  /**
      * Estimate number of lines for content
      */
     private static function estimate_lines($html) {
