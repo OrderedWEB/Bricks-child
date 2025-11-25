@@ -103,267 +103,8 @@ add_action('wp_logout', function() {
     }
 });
 
-/**
- * ================================================================
- * ENQUEUE SCRIPTS & STYLES
- * ================================================================
- */
-add_action('wp_enqueue_scripts', 'el_print_editor_enqueue_scripts');
-
-function el_print_editor_enqueue_scripts() {
-    global $post;
-    if (is_a($post, 'WP_Post') && has_shortcode($post->post_content, 'el_print_editor')) {
-        
-        wp_enqueue_script(
-            'el-print-editor-enhanced',
-            get_stylesheet_directory_uri() . '/js/el-print-editor-enhanced.js',
-            array('jquery'),
-            '1.0.1',
-            true
-        );
-        
-        wp_localize_script('el-print-editor-enhanced', 'el_print_config', array(
-            'ajax_url' => admin_url('admin-ajax.php'),
-            'nonce' => wp_create_nonce('el_nonce'),
-            'can_edit' => current_user_can('edit_posts') ? '1' : '0',
-            'paper_only_default' => '0'
-        ));
-    }
-}
 
 
-/**
- * Central pagination handler - single page version
- */
-function el_apply_central_pagination($html_content, $options = []) {
-    // Extract style block
-    $style_block = '';
-    if (preg_match('/<style[^>]*>(.*?)<\/style>/is', $html_content, $matches)) {
-        $style_block = $matches[0];
-        $html_content = preg_replace('/<style[^>]*>.*?<\/style>/is', '', $html_content);
-    }
-    
-    // Extract header (letterhead) - but keep it in content too
-    $header_html = '';
-    if (preg_match('/<div[^>]*class="[^"]*letterhead[^"]*"[^>]*>.*?<\/div>/is', $html_content, $matches)) {
-        $header_html = $matches[0];
-        // DON'T remove it from content
-    }
-    
-    // Default options
-    $defaults = [
-        'paper_only' => true,
-        'add_page_signatures' => false,
-        'signature_format' => 'Client signature …………..……………………… Date ………… Page %d/%d',
-        'lines_per_page' => 35,
-        'force_new_page_sections' => false,
-        'keep_signatures_together' => true
-    ];
-    
-    $options = array_merge($defaults, $options);
-    
-    // Use pagination handler (which now returns single page)
-    if (class_exists('EL_Pagination_Handler')) {
-        $result = EL_Pagination_Handler::paginate_content($html_content, $options);
-        $page_count = $result['page_count'];
-        $pages_html = $result['html'];
-    } else {
-        $pages_html = $html_content;
-        $page_count = 1;
-    }
-    
-    // Build final HTML - single page with all content, NO PADDING
-    $final_html = '<div class="print-page" data-page="1">';
-    
-    // Add all content (letterhead is already in it)
-    $final_html .= $pages_html;
-    
-    // Add signature line at bottom
-    if ($options['add_page_signatures']) {
-        $signature_text = sprintf($options['signature_format'], 1, 1);
-        $final_html .= '<div class="el-page-signature">' . esc_html($signature_text) . '</div>';
-    }
-    
-    // Add page footer
-    $final_html .= '<div class="page-footer">';
-    $final_html .= '<div class="page-number">Page 1 of 1</div>';
-    $final_html .= '</div>';
-    
-    $final_html .= '</div>';
-    
-    // Add minimal CSS
-    $print_css = '
-    <style>
-    .print-page {
-        margin: 0;
-        padding: 0;
-    }
-    
-    .el-page-signature {
-        margin-top: 10mm;
-        padding-top: 3mm;
-        border-top: 1px solid #ccc;
-    }
-    
-    .page-footer {
-        margin-top: 5mm;
-        padding-top: 3mm;
-        border-top: 1px solid #ccc;
-        text-align: center;
-    }
-    
-    @media print {
-        @page {
-            size: A4;
-            margin: 0;
-        }
-    }
-    </style>
-    ';
-    
-    // Add style blocks back at the top
-    $final_html = $style_block . $print_css . $final_html;
-
-    return [
-        'html' => $final_html,
-        'page_count' => 1
-    ];
-}
-/**
- * =================================================================
- * ENHANCED PRINT EDITOR INTEGRATION
- * =================================================================
- */
-function el_integrate_enhanced_print_editor() {
-    // Get theme directory path
-    $theme_dir = get_stylesheet_directory();
-    
-    // Only load if we haven't already loaded the original shortcode
-    if (!shortcode_exists('el_print_editor')) {
-        // Include the enhanced version using theme directory
-        if (file_exists($theme_dir . '/el-print-editor-enhanced.php')) {
-            require_once $theme_dir . '/el-print-editor-enhanced.php';
-        }
-        if (file_exists($theme_dir . '/class-el-pagination.php')) {
-            require_once $theme_dir . '/class-el-pagination.php';
-        }
-        if (file_exists($theme_dir . '/el-print-enhanced.php')) {
-            require_once $theme_dir . '/el-print-enhanced.php';
-        }
-    } else {
-        // Remove the original shortcode and replace with enhanced
-        remove_shortcode('el_print_editor');
-        
-        // Include enhanced files from theme directory
-        if (file_exists($theme_dir . '/el-print-editor-enhanced.php')) {
-            require_once $theme_dir . '/el-print-editor-enhanced.php';
-        }
-        if (file_exists($theme_dir . '/class-el-pagination.php')) {
-            require_once $theme_dir . '/class-el-pagination.php';
-        }
-        if (file_exists($theme_dir . '/el-print-enhanced.php')) {
-            require_once $theme_dir . '/el-print-enhanced.php';
-        }
-    }
-}
-add_action('init', 'el_integrate_enhanced_print_editor', 20);
-
-/**
- * Create print history table
- */
-function el_create_print_history_table() {
-    global $wpdb;
-    
-    $table_name = $wpdb->prefix . 'el_print_history';
-    $charset_collate = $wpdb->get_charset_collate();
-    
-    $sql = "CREATE TABLE IF NOT EXISTS $table_name (
-        id int(11) NOT NULL AUTO_INCREMENT,
-        reference varchar(50) NOT NULL,
-        user_id int(11) DEFAULT NULL,
-        action varchar(50) DEFAULT NULL,
-        paper_only tinyint(1) DEFAULT 0,
-        timestamp datetime DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (id),
-        KEY reference (reference),
-        KEY user_id (user_id)
-    ) $charset_collate;";
-    
-    require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
-    dbDelta($sql);
-}
-register_activation_hook(__FILE__, 'el_create_print_history_table');
-
-/**
- * Apply pagination filter
- */
-add_filter('el_print_editor_html', function($html, $pdf_data) {
-    // Check if paper-only mode
-    $is_paper_only = false;
-    if (class_exists('EL_Pagination_Handler')) {
-        $is_paper_only = EL_Pagination_Handler::is_paper_only($pdf_data);
-    }
-    
-    if ($is_paper_only) {
-        // Apply pagination with page signatures
-        $pagination_options = [
-            'paper_only' => true,
-            'add_page_signatures' => true,
-            'signature_format' => get_option('el_signature_format', 'Client signature …………..……………………… Date ………… Page %d/%d')
-        ];
-        
-        if (class_exists('EL_Pagination_Handler')) {
-            $paginated_result = EL_Pagination_Handler::paginate_content($html, $pagination_options);
-            return $paginated_result['html'];
-        }
-    }
-
-    return $html;
-}, 10, 2);
-
-/**
- * Set enhanced defaults
- */
-function el_set_enhanced_defaults() {
-    // Default print settings
-    add_option('el_default_paper_only', '0');
-    add_option('el_signature_format', 'Client signature …………..……………………… Date ………… Page %d/%d');
-    add_option('el_min_lines_per_page', '2');
-    add_option('el_force_new_page_sections', '1');
-    add_option('el_keep_signatures_together', '1');
-}
-register_activation_hook(__FILE__, 'el_set_enhanced_defaults');
-
-/**
- * COMPATIBILITY LAYER
- * Ensures backward compatibility with existing code
- */
-
-// Maintain compatibility with existing AJAX actions
-if (!has_action('wp_ajax_el_load_print_editor')) {
-    add_action('wp_ajax_el_load_print_editor', 'el_ajax_load_print_editor_enhanced');
-    add_action('wp_ajax_nopriv_el_load_print_editor', 'el_ajax_load_print_editor_enhanced');
-}
-
-if (!has_action('wp_ajax_el_save_edited_pdf')) {
-    add_action('wp_ajax_el_save_edited_pdf', 'el_ajax_save_edited_pdf_enhanced');
-    add_action('wp_ajax_nopriv_el_save_edited_pdf', 'el_ajax_save_edited_pdf_enhanced');
-}
-
-// Maintain compatibility with existing JavaScript globals
-add_action('wp_footer', function() {
-    if (is_page_template('engagement-letter-wizard.php') || has_shortcode(get_post()->post_content, 'el_print_editor')) {
-        ?>
-        <script>
-        // Maintain backward compatibility with existing code
-        if (typeof el_ajax !== 'undefined' && typeof el_print_config !== 'undefined') {
-            el_print_config.ajax_url = el_ajax.ajax_url;
-            el_print_config.nonce = el_ajax.nonce;
-        }
-        </script>
-        <?php
-    }
-});
 
 
 /**
@@ -555,301 +296,7 @@ function el_save_client_ajax() {
 }
 
 
-/**
- * Tab 5 - Export & Download with Paged.js
- * Alternative implementation using Paged.js for client-side pagination
- */
 
-function el_tab5_pagedjs_php() {
-    // Security check
-    if (!current_user_can('manage_options')) {
-        return '<p>You do not have permission to view this content.</p>';
-    }
-    
-    // Get the saved PDF data from session
-    if (!session_id()) {
-        session_start();
-    }
-    
-    $pdf_reference = isset($_SESSION['el_pdf_reference']) ? $_SESSION['el_pdf_reference'] : '';
-    
-    if (empty($pdf_reference)) {
-        return '<p>No engagement letter found. Please complete the previous steps first.</p>';
-    }
-    
-    // Get PDF data
-    $pdf_data = get_transient('el_pdf_data_' . $pdf_reference);
-    
-    if (!$pdf_data) {
-        return '<p>Engagement letter data not found. Please regenerate the preview.</p>';
-    }
-    
-    // Generate the HTML content
-    $html_content = '';
-    if (function_exists('el_render_engagement_letter_html')) {
-        $html_content = el_render_engagement_letter_html($pdf_data);
-    }
-    
-    ob_start();
-    ?>
-    
-    <div class="el-tab-content el-tab5-content">
-        <!-- Tab Header -->
-        <div class="el-tab-header">
-            <h2>Export & Download - Print Version</h2>
-            <p>Review the paginated document with automatic page signatures</p>
-        </div>
-        
-        <!-- Controls -->
-        <div class="el-print-controls">
-            <label class="el-paper-toggle">
-                <input type="checkbox" id="paper-only-toggle" checked>
-                <span>Paper-only mode (with page signatures)</span>
-            </label>
-            
-            <div class="el-print-actions">
-                <button type="button" id="el-download-pdf" class="button button-primary">
-                    <span class="dashicons dashicons-download"></span> Download PDF
-                </button>
-                <button type="button" id="el-print-preview" class="button">
-                    <span class="dashicons dashicons-printer"></span> Print Preview
-                </button>
-            </div>
-        </div>
-        
-        <!-- Document Container for Paged.js -->
-        <div id="paged-document" class="pagedjs-document">
-            <?php echo $html_content; ?>
-        </div>
-    </div>
-    
-    <!-- Load Paged.js from CDN -->
-    <script src="https://unpkg.com/pagedjs@0.4.3/dist/paged.min.js"></script>
-    
-    <style>
-        /* Tab 5 specific styles */
-        .el-tab5-content {
-            padding: 20px;
-            background: #f9f9f9;
-        }
-        
-        .el-tab-header {
-            margin-bottom: 30px;
-        }
-        
-        .el-tab-header h2 {
-            margin: 0 0 10px;
-            color: #23282d;
-        }
-        
-        .el-print-controls {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            padding: 15px;
-            background: white;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-        }
-        
-        .el-paper-toggle {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            cursor: pointer;
-        }
-        
-        .el-print-actions {
-            display: flex;
-            gap: 10px;
-        }
-        
-        /* Paged.js container */
-        .pagedjs_pages {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-            align-items: center;
-            padding: 20px;
-            background: #e0e0e0;
-            overflow-x: auto;
-        }
-        
-        .pagedjs_page {
-            background: white;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-        }
-        
-        /* Hide page signatures by default, show when paper-only is checked */
-        .page-signature-line {
-            display: none;
-            position: absolute;
-            bottom: 25mm;
-            left: 25mm;
-            right: 25mm;
-            text-align: center;
-            font-size: 10pt;
-            color: #333;
-            border-top: 1px solid #999;
-            padding-top: 5mm;
-        }
-        
-        body.paper-only .page-signature-line {
-            display: block;
-        }
-        
-        /* Paged Media styles */
-        @page {
-            size: A4;
-            margin: 25mm;
-            
-            @bottom-center {
-                content: none; /* We'll add signatures via JavaScript */
-            }
-        }
-        
-        /* Content styles from engagement letter */
-        .engagement-letter {
-            font-family: 'Times New Roman', serif;
-            font-size: 12pt;
-            line-height: 1.5;
-            color: #000;
-        }
-        
-        .engagement-letter h1,
-        .engagement-letter h2,
-        .engagement-letter h3 {
-            font-weight: bold;
-            margin-top: 1em;
-            margin-bottom: 0.5em;
-        }
-        
-        .engagement-letter h1 { font-size: 16pt; }
-        .engagement-letter h2 { font-size: 14pt; }
-        .engagement-letter h3 { font-size: 12pt; }
-        
-        /* Pagination rules */
-        h1, h2, h3 {
-            break-after: avoid;
-        }
-        
-        p {
-            orphans: 2;
-            widows: 2;
-        }
-        
-        table, figure {
-            break-inside: avoid;
-        }
-        
-        /* Signature blocks should stay together */
-        .signature-block {
-            break-inside: avoid;
-            page-break-inside: avoid;
-        }
-    </style>
-    
-    <script>
-    jQuery(document).ready(function($) {
-        let paged = null;
-        
-        // Paged.js class for handling page signatures
-        class PageSignatures extends Paged.Handler {
-            constructor(chunker, polisher, caller) {
-                super(chunker, polisher, caller);
-            }
-            
-            afterPageLayout(pageElement, page, breakToken) {
-                // Only add signatures if paper-only mode is active
-                if (!document.body.classList.contains('paper-only')) {
-                    return;
-                }
-                
-                // Don't add signature to the last page
-                const totalPages = document.querySelectorAll('.pagedjs_page').length;
-                if (page.number === totalPages) {
-                    return;
-                }
-                
-                // Create signature line
-                const signature = document.createElement('div');
-                signature.className = 'page-signature-line';
-                signature.innerHTML = `Client signature …………..……………………… Date ………… Page ${page.number}/${totalPages}`;
-                
-                // Add to page
-                const pageArea = pageElement.querySelector('.pagedjs_page_content');
-                if (pageArea) {
-                    pageArea.appendChild(signature);
-                }
-            }
-        }
-        
-        // Register the handler
-        Paged.registerHandlers(PageSignatures);
-        
-        // Initialize Paged.js
-        function initializePaged() {
-            // Add paper-only class if checkbox is checked
-            if ($('#paper-only-toggle').is(':checked')) {
-                $('body').addClass('paper-only');
-            } else {
-                $('body').removeClass('paper-only');
-            }
-            
-            // Preview the document
-            paged = new Paged.Previewer();
-            paged.preview().then(() => {
-                console.log('Paged.js rendering complete');
-                updatePageCount();
-            });
-        }
-        
-        // Update page count after rendering
-        function updatePageCount() {
-            const totalPages = document.querySelectorAll('.pagedjs_page').length;
-            console.log('Total pages:', totalPages);
-            
-            // Update all page signatures with correct total
-            if ($('body').hasClass('paper-only')) {
-                $('.page-signature-line').each(function(index) {
-                    if (index < totalPages - 1) { // Not on last page
-                        $(this).html(`Client signature …………..……………………… Date ………… Page ${index + 1}/${totalPages}`);
-                    }
-                });
-            }
-        }
-        
-        // Paper-only toggle handler
-        $('#paper-only-toggle').on('change', function() {
-            // Clear existing preview
-            $('.pagedjs_pages').remove();
-            
-            // Re-render with new settings
-            initializePaged();
-        });
-        
-        // Download PDF handler
-        $('#el-download-pdf').on('click', function() {
-            window.print();
-        });
-        
-        // Print preview handler
-        $('#el-print-preview').on('click', function() {
-            window.print();
-        });
-        
-        // Initialize on load
-        initializePaged();
-    });
-    </script>
-    
-    <?php
-    return ob_get_clean();
-}
-
-// Register shortcode
-add_shortcode('el_print_editor_pagedjs', 'el_tab5_pagedjs_php');
 /**
  * =================================================================
  * PART 2: ENHANCED JAVASCRIPT FOR FORM HANDLING & NAVIGATION
@@ -4186,6 +3633,7 @@ function el_ajax_submit_signature() {
     ]);
 }
 
+
 /**
  * =================================================================
  * PART 4: ENHANCED PDF PREVIEW GENERATION
@@ -4270,7 +3718,8 @@ function el_ajax_generate_pdf_preview() {
     $reference = $pdf_data['reference'];
     set_transient('el_pdf_data_' . $reference, $pdf_data, HOUR_IN_SECONDS);
     $_SESSION['el_pdf_reference'] = $reference;
-    
+    // DEBUG TRANSIENT
+error_log('🔵 TRANSIENT SAVED: el_pdf_data_' . $reference . ' for ' . HOUR_IN_SECONDS . ' seconds');
     // Store EL post ID in PDF data for later reference
     // Check both possible session variable names
     $el_post_id = $_SESSION['el_engagement_letter_id'] ?? $_SESSION['el_current_post_id'] ?? 0;
@@ -4303,6 +3752,53 @@ function el_ajax_generate_pdf_preview() {
         'total_engagement_fee' => wc_price($pdf_data['total_engagement_fee']),
         'total_expected_cost' => wc_price($pdf_data['total_expected_cost'])
     ]);
+}
+function el_handle_refresh_cart_session() {
+    check_ajax_referer('el_refresh', 'nonce');
+    
+    if (!function_exists('WC') || !WC()->cart) {
+        wp_send_json_error(['message' => 'WooCommerce cart not available']);
+    }
+    
+    // Refresh cart from session
+    WC()->cart->get_cart_from_session();
+    
+    wp_send_json_success([
+        'message' => 'Cart refreshed',
+        'cart_count' => WC()->cart->get_cart_contents_count()
+    ]);
+}
+
+
+// Clean HTML before PDF generation
+add_filter('acf/format_value/name=client_fillable_pdf_text', 'el_clean_pdf_html', 20, 3);
+function el_clean_pdf_html($value, $post_id, $field) {
+    if (empty($value)) {
+        return $value;
+    }
+    
+    // Remove problematic WordPress classes and inline styles
+    $value = preg_replace('/class=["\']align(left|right|center)["\']/', '', $value);
+    $value = preg_replace('/class=["\']wp-image-\d+["\']/', '', $value);
+    $value = preg_replace('/class=["\']size-(full|medium|large|thumbnail)["\']/', '', $value);
+    
+    // Remove inline-block styles
+    $value = str_replace('display: inline-block', 'display: block', $value);
+    
+    // Remove srcset (simplify images)
+    $value = preg_replace('/srcset=["\'][^"\']*["\']/', '', $value);
+    $value = preg_replace('/sizes=["\'][^"\']*["\']/', '', $value);
+    
+    // Remove loading and decoding attributes
+    $value = preg_replace('/(loading|decoding)=["\'][^"\']*["\']/', '', $value);
+    
+    // Remove empty paragraphs
+    $value = preg_replace('/<p[^>]*>(&nbsp;|\s)*<\/p>/', '', $value);
+    
+    // Log for debugging
+    error_log('🧹 Cleaned PDF HTML, length: ' . strlen($value));
+    
+    return $value;
 }
 
 /**
@@ -4853,6 +4349,8 @@ function el_render_pdf_preview_html($pdf_data) {
  * Updated to prevent removal/quantity changes for el-templates products
  * =================================================================
  */
+
+
 /**
  * =================================================================
  * GLOBAL "START OVER" BUTTON
@@ -6673,103 +6171,6 @@ function el_render_print_editor_shortcode($atts) {
     
     <?php
     return ob_get_clean();
-}
-// AJAX handler to load engagement letter into print editor
-add_action('wp_ajax_el_load_print_editor', 'el_handle_load_print_editor');
-add_action('wp_ajax_nopriv_el_load_print_editor', 'el_handle_load_print_editor');
-
-function el_handle_load_print_editor() {
-    // Verify nonce
-    check_ajax_referer('el_nonce', 'nonce');
-    
-    // Get reference from session or POST
-    $reference = isset($_POST['reference']) ? sanitize_text_field($_POST['reference']) : '';
-    
-    // If no reference provided, try to get from session (set by Tab 4)
-    if (empty($reference)) {
-        if (!session_id()) {
-            session_start();
-        }
-        $reference = isset($_SESSION['el_pdf_reference']) ? $_SESSION['el_pdf_reference'] : '';
-    }
-    
-    if (empty($reference)) {
-        wp_send_json_error(['message' => 'No document reference found. Please generate the preview in Tab 4 first.']);
-    }
-    
-    // Check if paper-only mode requested
-    $paper_only = isset($_POST['paper_only']) ? $_POST['paper_only'] === 'true' : false;
-    
-    // Get the saved engagement letter HTML from Tab 4
-    $html = get_transient('el_saved_pdf_' . $reference);
-    
-    if (!$html) {
-        // Try to get from PDF data if saved HTML not found
-        $pdf_data = get_transient('el_pdf_data_' . $reference);
-        
-        if ($pdf_data) {
-            // Load the preview rendering function
-            $preview_file = get_stylesheet_directory() . '/preview-inline.php';
-            if (file_exists($preview_file)) {
-                require_once $preview_file;
-                
-                if (function_exists('el_render_engagement_letter_html')) {
-                    $html = el_render_engagement_letter_html($pdf_data);
-                    
-                    // Save for future use
-                    set_transient('el_saved_pdf_' . $reference, $html, 24 * HOUR_IN_SECONDS);
-                }
-            }
-        }
-    }
-    
-    if (!$html) {
-        wp_send_json_error(['message' => 'Document not found or expired. Please regenerate in Tab 4.']);
-    }
-    
-    // Apply pagination if paper-only mode and pagination class exists
-    $response_data = [
-        'html' => $html,
-        'paper_only' => $paper_only,
-        'pages' => 1,
-        'reference' => $reference,
-        'message' => 'Document loaded successfully'
-    ];
-    
-    if ($paper_only && class_exists('EL_Pagination_Handler')) {
-        $pagination_options = [
-            'paper_only' => true,
-            'add_page_signatures' => true,
-            'signature_format' => 'Client signature …………..……………………… Date ………… Page %d/%d',
-            'lines_per_page' => 54, // Less lines to accommodate signature
-            'force_new_page_sections' => true
-        ];
-        
-        $paginated = EL_Pagination_Handler::paginate_content($html, $pagination_options);
-        $response_data['html'] = $paginated['html'];
-        $response_data['pages'] = $paginated['page_count'];
-        $response_data['paginated'] = true;
-    }
-    
-    wp_send_json_success($response_data);
-}
-
-
-
-// Initialize JavaScript configuration
-add_action('wp_footer', 'el_print_editor_config_script');
-function el_print_editor_config_script() {
-    if (is_page() || is_single()) {
-        ?>
-        <script>
-        var el_print_config = {
-            ajax_url: '<?php echo admin_url('admin-ajax.php'); ?>',
-            nonce: '<?php echo wp_create_nonce('el_nonce'); ?>',
-            can_edit: <?php echo current_user_can('edit_posts') ? 'true' : 'false'; ?>
-        };
-        </script>
-        <?php
-    }
 }
 
 
@@ -9272,3 +8673,30 @@ function el_show_debug_info() {
     
     return $output;
 }
+
+   // Ensure EL system loads on init
+require_once get_stylesheet_directory() . '/inc/el-print-system.php';
+
+// Ensure EL system loads on init
+add_action('init', function() {
+    if (class_exists('EL_Print_System') && !defined('EL_SYSTEM_LOADED')) {
+        $GLOBALS['el_print_system'] = EL_Print_System::instance();
+        define('EL_SYSTEM_LOADED', true);
+    }
+}, 1);
+
+// Force preview viewer scripts on engagement letter page
+add_action('wp_enqueue_scripts', function() {
+    if (is_page('create-engagement-letter')) {
+        wp_enqueue_script(
+            'el-preview-viewer-force',
+            get_stylesheet_directory_uri() . '/js/el-preview-viewer.js',
+            ['jquery'],
+            '1.0.0',
+            true
+        );
+        
+        wp_localize_script('el-preview-viewer-force', 'ajaxurl', admin_url('admin-ajax.php'));
+    }
+}, 100);
+

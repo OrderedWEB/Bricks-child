@@ -153,7 +153,52 @@ if (!$(".el-wizard-container").length && !$(".brxe-tabs-nested").length) {
         self.handleNoClientStart($(this));
       });
     },
-
+jQuery(document).ready(function($) {
+    // Load Paged.js library once
+    if (!window.Paged) {
+        const script = document.createElement('script');
+        script.src = 'https://unpkg.com/pagedjs@0.4.3/dist/paged.polyfill.js';
+        script.onload = function() {
+            console.log('✓ Paged.js loaded');
+        };
+        document.head.appendChild(script);
+    }
+    
+    // Listen for PDF preview load
+    $(document).on('DOMNodeInserted', '#el-pdf-preview-container', function() {
+        if ($('#paged-source').length && window.Paged) {
+            setTimeout(function() {
+                initPagedPreview();
+            }, 100);
+        }
+    });
+    
+    function initPagedPreview() {
+        const sourceContent = document.querySelector('#paged-source');
+        const targetContainer = document.querySelector('#paged-preview-target');
+        const loading = document.querySelector('.el-loading');
+        
+        if (!sourceContent || !targetContainer || !window.Paged) return;
+        
+        console.log('Initializing Paged.js preview...');
+        
+        const paged = new window.Paged.Previewer();
+        paged.preview(sourceContent.innerHTML, [], targetContainer)
+            .then(() => {
+                console.log('✓ Pages generated');
+                if (loading) loading.style.display = 'none';
+                
+                const pageCount = document.querySelectorAll('.pagedjs_page').length;
+                console.log('Total pages:', pageCount);
+            })
+            .catch(err => {
+                console.error('Paged.js error:', err);
+                if (loading) {
+                    loading.innerHTML = '<p style="color: red;">Error: ' + err.message + '</p>';
+                }
+            });
+    }
+});
     /**
      * =================================================================
      * TAB NAVIGATION
