@@ -93,9 +93,9 @@ class EL_Print_Data_Assembler {
         }
         
         // Apply merge tags to boilerplate if including user data
-        if ($include_user_data) {
-            $data['boilerplate'] = self::process_boilerplate_merge_tags($data['boilerplate'], $data);
-        }
+      
+        $data['boilerplate'] = self::process_boilerplate_merge_tags($data['boilerplate'], $data);
+        
         
         // Add computed fields
         $data['totals']['engagement_fee_formatted'] = wc_price($data['totals']['engagement_fee']);
@@ -110,11 +110,36 @@ class EL_Print_Data_Assembler {
      * @param bool $include_user_data Whether to use actual data or placeholders
      * @return array Session data with client and form_data keys
      */
-    private static function get_session_data($include_user_data) {
-        $customer = WC()->customer;
+   private static function get_session_data($include_user_data) {
+    if ($include_user_data) {
+        // Get form data from session (saved in Step 1)
+        if (!session_id()) {
+            session_start();
+        }
         
-        if ($include_user_data) {
-            // Real client data from customer/session
+        $form_data = $_SESSION['el_form_data'] ?? [];
+        
+        // Use session form data if available
+        if (!empty($form_data)) {
+            $client_data = [
+                'first_name' => $form_data['first_name'] ?? '',
+                'last_name' => $form_data['last_name'] ?? '',
+                'name' => $form_data['full_name'] ?? trim(($form_data['first_name'] ?? '') . ' ' . ($form_data['last_name'] ?? '')),
+                'email' => $form_data['email'] ?? '',
+                'phone' => $form_data['phone'] ?? '',
+                'company' => $form_data['company'] ?? '',
+                'address' => [
+                    'line_1' => $form_data['street_address'] ?? '',
+                    'line_2' => $form_data['address_2'] ?? '',
+                    'city' => $form_data['city'] ?? '',
+                    'state' => $form_data['state'] ?? '',
+                    'postcode' => $form_data['zip'] ?? '',
+                    'country' => $form_data['country'] ?? '',
+                ],
+            ];
+        } else {
+            // Fallback to WooCommerce customer if no session data
+            $customer = WC()->customer;
             $client_data = [
                 'first_name' => $customer->get_billing_first_name(),
                 'last_name' => $customer->get_billing_last_name(),
@@ -131,36 +156,41 @@ class EL_Print_Data_Assembler {
                     'country' => $customer->get_billing_country(),
                 ],
             ];
-            
-            // Get form data from session if available
-            $form_data = WC()->session->get('el_form_data', []);
-        } else {
-            // Blank placeholders for template version
-            $client_data = [
-                'first_name' => self::DOTTED_PLACEHOLDER,
-                'last_name' => self::DOTTED_PLACEHOLDER,
-                'name' => self::DOTTED_PLACEHOLDER,
-                'email' => self::DOTTED_PLACEHOLDER,
-                'phone' => self::DOTTED_PLACEHOLDER,
-                'company' => self::DOTTED_PLACEHOLDER,
-                'address' => [
-                    'line_1' => self::DOTTED_PLACEHOLDER,
-                    'line_2' => '',
-                    'city' => self::DOTTED_PLACEHOLDER,
-                    'state' => self::DOTTED_PLACEHOLDER,
-                    'postcode' => self::DOTTED_PLACEHOLDER,
-                    'country' => self::DOTTED_PLACEHOLDER,
-                ],
-            ];
-            
-            $form_data = [];
         }
         
         return [
             'client' => $client_data,
             'form_data' => $form_data,
         ];
-    }
+        
+} else {
+    // Blank placeholders for template version - use longer dotted lines
+    $long_dots = str_repeat('.', 30); // Longer line to fill space
+    $short_dots = str_repeat('.', 20);
+    
+    $client_data = [
+        'first_name' => $short_dots,
+        'last_name' => $short_dots,
+        'name' => $long_dots,
+        'email' => $long_dots,
+        'phone' => $short_dots,
+        'company' => $long_dots,
+        'address' => [
+            'line_1' => $long_dots,
+            'line_2' => '',
+            'city' => $short_dots,
+            'state' => $short_dots,
+            'postcode' => $short_dots,
+            'country' => $short_dots,
+        ],
+    ];
+    
+    return [
+        'client' => $client_data,
+        'form_data' => [],
+    ];
+}
+}
     
     /**
      * Get boilerplate content from ACF options
@@ -186,83 +216,165 @@ class EL_Print_Data_Assembler {
      * @param bool $include_user_data Whether to process merge tags
      * @return array|null Product data or null if invalid
      */
-    private static function process_cart_item($cart_item, $data, $include_user_data) {
-        $product = $cart_item['data'];
-        $product_id = $cart_item['product_id'];
-        $variation_id = $cart_item['variation_id'] ?? 0;
-        $quantity = $cart_item['quantity'];
-        
-        // Use variation ID for ACF fields if it's a variation
-        $acf_id = $variation_id ?: $product_id;
-        
-        // Get fees
-        $engagement_fee = floatval(get_field('engagement_fee', $acf_id) ?: $product->get_price());
-        $expected_cost = floatval(get_field('expected_total_cost', $acf_id) ?: 0);
-        
-        // Get PDF-layer content fields (THESE ARE THE CORRECT FIELDS)
-        $pdf_el_title = get_field('pdf_el_title', $acf_id) ?: $product->get_name();
-        $pdf_el_subtitle = get_field('pdf_el_subtitle', $acf_id) ?: '';
-        $pdf_el_text = get_field('pdf_el_text', $acf_id) ?: '';
-        $client_fillable_text = get_field('client_fillable_pdf_text', $acf_id) ?: '';
-        $el_introduction = get_field('el_introduction_texts', $acf_id) ?: '';
-        $pdf_footer_notes = get_field('pdf_footer_notes', $acf_id) ?: '';
-        $fee_structure = get_field('fee_structure', $acf_id) ?: '';
-        
-        // Get repeater fields
-        $pdf_clauses = get_field('pdf_clauses', $acf_id) ?: [];
-        $pdf_annexes = get_field('pdf_annexes', $acf_id) ?: [];
-        
-        // Build product data structure
-        $product_data = [
-            'id' => $product_id,
-            'variation_id' => $variation_id,
-            'acf_id' => $acf_id,
-            'cart_item_key' => $cart_item['cart_item_key'] ?? '',
-            'quantity' => $quantity,
-            'name' => $product->get_name(),
-            'sku' => $product->get_sku(),
-            
-            // PDF Content (PDF-layer fields)
-            'content' => [
-                'title' => $pdf_el_title,
-                'subtitle' => $pdf_el_subtitle,
-                'introduction' => $el_introduction,
-                'body_text' => $pdf_el_text,
-                'client_fillable_text' => $client_fillable_text,
-                'footer_notes' => $pdf_footer_notes,
-                'fee_structure' => $fee_structure,
-            ],
-            
-            // Structured content
-            'clauses' => self::process_repeater_field($pdf_clauses),
-            'annexes' => self::process_repeater_field($pdf_annexes),
-            
-            // Fees
-            'fees' => [
-                'engagement_fee' => $engagement_fee * $quantity,
-                'expected_cost' => $expected_cost * $quantity,
-                'unit_engagement_fee' => $engagement_fee,
-                'unit_expected_cost' => $expected_cost,
-                'engagement_fee_formatted' => wc_price($engagement_fee * $quantity),
-                'expected_cost_formatted' => wc_price($expected_cost * $quantity),
-            ],
-            
-            // Metadata
-            'meta' => [
-                'categories' => self::get_product_categories($product_id),
-                'practice_area' => get_field('practice_area', $acf_id) ?: '',
-            ],
-        ];
-        
-        // Apply merge tags if including user data
-        if ($include_user_data) {
-            $product_data['content'] = self::process_content_merge_tags($product_data['content'], $data);
-            $product_data['clauses'] = self::process_clauses_merge_tags($product_data['clauses'], $data);
-            $product_data['annexes'] = self::process_clauses_merge_tags($product_data['annexes'], $data);
-        }
-        
-        return $product_data;
+private static function process_cart_item($cart_item, $data, $include_user_data) {
+    $product = $cart_item['data'];
+    $product_id = $cart_item['product_id'];
+    $variation_id = $cart_item['variation_id'] ?? 0;
+    $quantity = $cart_item['quantity'];
+    
+    // Check if this is a grouped product parent
+    $is_grouped_parent = isset($cart_item['is_grouped_parent']) && $cart_item['is_grouped_parent'];
+    
+    // Check if this is a grouped product child
+    $is_grouped_child = isset($cart_item['is_grouped_child']) && $cart_item['is_grouped_child'];
+    $grouped_parent_id = $cart_item['grouped_parent_id'] ?? null;
+    
+    // Determine which product ID to use for ACF fields
+    if ($is_grouped_child && $grouped_parent_id) {
+        // For grouped children, use PARENT product ID for content, but child for pricing
+        $content_acf_id = $grouped_parent_id;
+        $pricing_acf_id = $variation_id ?: $product_id;
+    } else if ($variation_id) {
+        // For variations, use variation ID
+        $content_acf_id = $variation_id;
+        $pricing_acf_id = $variation_id;
+    } else {
+        // For regular products, use product ID
+        $content_acf_id = $product_id;
+        $pricing_acf_id = $product_id;
     }
+    
+    // Get fees (always from the actual product/variation for correct pricing)
+    $engagement_fee = floatval(get_field('engagement_fee', $pricing_acf_id) ?: $product->get_price());
+    $expected_cost = floatval(get_field('expected_total_cost', $pricing_acf_id) ?: 0);
+    
+    // Get PDF-layer content fields
+    // For grouped children, try parent ACF data from cart first, then from parent product
+    if ($is_grouped_child && isset($cart_item['parent_acf_data'])) {
+        // Use cached parent ACF data from cart
+        $parent_acf = $cart_item['parent_acf_data'];
+        $pdf_el_title = $parent_acf['pdf_el_title'] ?: get_field('pdf_el_title', $content_acf_id);
+        $pdf_el_subtitle = $parent_acf['pdf_el_subtitle'] ?: get_field('pdf_el_subtitle', $content_acf_id);
+        $pdf_el_text = $parent_acf['pdf_el_text'] ?: get_field('pdf_el_text', $content_acf_id);
+        $client_fillable_text = $parent_acf['client_fillable_pdf_text'] ?: get_field('client_fillable_pdf_text', $content_acf_id);
+        $el_introduction = $parent_acf['el_introduction_texts'] ?: get_field('el_introduction_texts', $content_acf_id);
+        $pdf_footer_notes = $parent_acf['pdf_footer_notes'] ?: get_field('pdf_footer_notes', $content_acf_id);
+        $fee_structure = $parent_acf['fee_structure'] ?: get_field('fee_structure', $content_acf_id);
+        $pdf_clauses = $parent_acf['pdf_clauses'] ?: get_field('pdf_clauses', $content_acf_id);
+        $pdf_annexes = $parent_acf['pdf_annexes'] ?: get_field('pdf_annexes', $content_acf_id);
+    } else {
+        // Normal product or grouped parent - get from content_acf_id
+        $pdf_el_title = get_field('pdf_el_title', $content_acf_id) ?: $product->get_name();
+        $pdf_el_subtitle = get_field('pdf_el_subtitle', $content_acf_id) ?: '';
+        $pdf_el_text = get_field('pdf_el_text', $content_acf_id) ?: '';
+        $client_fillable_text = get_field('client_fillable_pdf_text', $content_acf_id) ?: '';
+        $el_introduction = get_field('el_introduction_texts', $content_acf_id) ?: '';
+        $pdf_footer_notes = get_field('pdf_footer_notes', $content_acf_id) ?: '';
+        $fee_structure = get_field('fee_structure', $content_acf_id) ?: '';
+        $pdf_clauses = get_field('pdf_clauses', $content_acf_id) ?: [];
+        $pdf_annexes = get_field('pdf_annexes', $content_acf_id) ?: [];
+    }
+    
+    // Build product data structure
+    $product_data = [
+        'id' => $product_id,
+        'variation_id' => $variation_id,
+        'acf_id' => $content_acf_id,
+        'pricing_acf_id' => $pricing_acf_id,
+        'cart_item_key' => $cart_item['cart_item_key'] ?? '',
+        'quantity' => $quantity,
+        'name' => $product->get_name(),
+        'sku' => $product->get_sku(),
+        
+        // Grouped product flags
+        'is_grouped_parent' => $is_grouped_parent,
+        'is_grouped_child' => $is_grouped_child,
+        'grouped_parent_id' => $grouped_parent_id,
+        'grouped_parent_name' => $cart_item['grouped_parent_name'] ?? '',
+        
+        // PDF Content (PDF-layer fields from parent for grouped children)
+        'content' => [
+            'title' => $pdf_el_title,
+            'subtitle' => $pdf_el_subtitle,
+            'introduction' => $el_introduction,
+            'body_text' => $pdf_el_text,
+            'client_fillable_text' => $client_fillable_text,
+            'footer_notes' => $pdf_footer_notes,
+            'fee_structure' => $fee_structure,
+        ],
+        
+        // Structured content (from parent for grouped children)
+        'clauses' => self::process_repeater_field($pdf_clauses),
+        'annexes' => self::process_repeater_field($pdf_annexes),
+        
+        // Fees (from actual child product for correct pricing)
+        'fees' => [
+            'engagement_fee' => $engagement_fee * $quantity,
+            'expected_cost' => $expected_cost * $quantity,
+            'unit_engagement_fee' => $engagement_fee,
+            'unit_expected_cost' => $expected_cost,
+            'engagement_fee_formatted' => wc_price($engagement_fee * $quantity),
+            'expected_cost_formatted' => wc_price($expected_cost * $quantity),
+        ],
+        
+        // Metadata
+        'meta' => [
+            'categories' => self::get_product_categories($content_acf_id),
+            'practice_area' => get_field('practice_area', $content_acf_id) ?: '',
+            'engagement_type' => get_field('engagement_type', $content_acf_id) ?: '',
+        ],
+    ];
+    
+    // Apply merge tags if including user data
+    if ($include_user_data) {
+        $product_data['content'] = self::process_content_merge_tags($product_data['content'], $data);
+        $product_data['clauses'] = self::process_clauses_merge_tags($product_data['clauses'], $data);
+        $product_data['annexes'] = self::process_clauses_merge_tags($product_data['annexes'], $data);
+    }
+    
+    return $product_data;
+}
+
+/**
+ * IMPORTANT: When rendering PDF/Preview, you should group children under their parent
+ * 
+ * Example logic in your PDF template:
+ * 
+ * // Group products by parent
+ * $grouped = [];
+ * $standalone = [];
+ * 
+ * foreach ($data['products'] as $product) {
+ *     if ($product['is_grouped_parent']) {
+ *         $grouped[$product['id']] = [
+ *             'parent' => $product,
+ *             'children' => []
+ *         ];
+ *     } else if ($product['is_grouped_child'] && $product['grouped_parent_id']) {
+ *         if (isset($grouped[$product['grouped_parent_id']])) {
+ *             $grouped[$product['grouped_parent_id']]['children'][] = $product;
+ *         }
+ *     } else {
+ *         $standalone[] = $product;
+ *     }
+ * }
+ * 
+ * // Render grouped products (show parent content once, list children for pricing)
+ * foreach ($grouped as $group) {
+ *     echo $group['parent']['content']['title'];
+ *     echo $group['parent']['content']['body_text'];
+ *     // List children as line items
+ *     foreach ($group['children'] as $child) {
+ *         echo $child['name'] . ': ' . $child['fees']['engagement_fee_formatted'];
+ *     }
+ * }
+ * 
+ * // Render standalone products
+ * foreach ($standalone as $product) {
+ *     echo $product['content']['title'];
+ *     echo $product['content']['body_text'];
+ * }
+ */
     
     /**
      * Process repeater field into standardized array

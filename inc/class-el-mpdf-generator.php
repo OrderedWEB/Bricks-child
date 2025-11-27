@@ -46,8 +46,8 @@ class EL_MPDF_Generator {
     private static $default_config = [
         'format' => 'A4',
         'orientation' => 'P',
-        'margin_top' => 25,
-        'margin_bottom' => 25,
+        'margin_top' => 35,
+        'margin_bottom' => 35,
         'margin_left' => 15,
         'margin_right' => 15,
         'margin_header' => 10,
@@ -118,84 +118,101 @@ class EL_MPDF_Generator {
      * 
      * @return bool True on success
      */
-    public function init() {
-        if ($this->mpdf !== null) {
-            return true;
-        }
-        
-        // Load mPDF
-        $mpdf_path = self::get_mpdf_path();
-        
-        if ($mpdf_path === false) {
-            error_log('EL mPDF Generator: mPDF library not found');
-            return false;
-        }
-        
-        require_once $mpdf_path;
-        
-        // Check if mPDF class exists
-        if (!class_exists('GFPDF_Vendor\\Mpdf\\Mpdf') && !class_exists('\\Mpdf\\Mpdf')) {
-            error_log('EL mPDF Generator: Mpdf class not found after loading');
-            return false;
-        }
-        
-        // Determine which namespace to use
-        $mpdf_class = class_exists('GFPDF_Vendor\\Mpdf\\Mpdf') ? 'GFPDF_Vendor\\Mpdf\\Mpdf' : '\\Mpdf\\Mpdf';
-        $this->destination_class = class_exists('GFPDF_Vendor\\Mpdf\\Mpdf') ? 'GFPDF_Vendor\\Mpdf\\Output\\Destination' : '\\Mpdf\\Output\\Destination';
-        
-        try {
-            // Get Gravity PDF font directory - it's in uploads, not in plugin dir
-            $font_dir = WP_CONTENT_DIR . '/uploads/PDF_EXTENDED_TEMPLATES/fonts/';
-            
-            // Fallback to plugin directory if uploads doesn't exist
-            if (!is_dir($font_dir)) {
-                $font_dir = WP_PLUGIN_DIR . '/gravity-pdf/vendor/mpdf/mpdf/ttfonts/';
-            }
-            if (!is_dir($font_dir)) {
-                $font_dir = WP_PLUGIN_DIR . '/gravity-forms-pdf-extended/vendor/mpdf/mpdf/ttfonts/';
-            }
-            
-            // Create mPDF instance with configuration
-            $this->mpdf = new $mpdf_class([
-                'mode' => $this->config['mode'],
-                'format' => $this->config['format'],
-                'orientation' => $this->config['orientation'],
-                'margin_left' => $this->config['margin_left'],
-                'margin_right' => $this->config['margin_right'],
-                'margin_top' => $this->config['margin_top'],
-                'margin_bottom' => $this->config['margin_bottom'],
-                'margin_header' => $this->config['margin_header'],
-                'margin_footer' => $this->config['margin_footer'],
-                'default_font' => $this->config['default_font'],
-                'default_font_size' => $this->config['default_font_size'],
-                'tempDir' => self::get_temp_dir(),
-                'fontDir' => [$font_dir],
-                'autoScriptToLang' => true,
-                'baseScript' => 1,
-                'autoLangToFont' => true,
-            ]);
-            
-            // Set document properties
-            $this->mpdf->SetTitle('Engagement Letter');
-            $this->mpdf->SetAuthor('Studio Legale Metta');
-            $this->mpdf->SetCreator('Engagement Letter System');
-            
-            // Enable auto language detection for proper character handling
-            if ($this->config['auto_language_detection']) {
-                $this->mpdf->autoLangToFont = true;
-            }
-            
-            // Enable line break preservation
-            $this->mpdf->use_kwt = true;
-            $this->mpdf->keep_table_proportions = true;
-            
-            return true;
-            
-        } catch (\Exception $e) {
-            error_log('EL mPDF Generator: Failed to initialize - ' . $e->getMessage());
-            return false;
-        }
+ public function init() {
+    if ($this->mpdf !== null) {
+        return true;
     }
+    
+    // Load mPDF
+    $mpdf_path = self::get_mpdf_path();
+    
+    if ($mpdf_path === false) {
+        error_log('EL mPDF Generator: mPDF library not found');
+        return false;
+    }
+    
+    require_once $mpdf_path;
+    
+    // Check if mPDF class exists
+    if (!class_exists('GFPDF_Vendor\\Mpdf\\Mpdf') && !class_exists('\\Mpdf\\Mpdf')) {
+        error_log('EL mPDF Generator: Mpdf class not found after loading');
+        return false;
+    }
+    
+    // Determine which namespace to use
+    $mpdf_class = class_exists('GFPDF_Vendor\\Mpdf\\Mpdf') ? 'GFPDF_Vendor\\Mpdf\\Mpdf' : '\\Mpdf\\Mpdf';
+    $this->destination_class = class_exists('GFPDF_Vendor\\Mpdf\\Mpdf') ? 'GFPDF_Vendor\\Mpdf\\Output\\Destination' : '\\Mpdf\\Output\\Destination';
+    
+    try {
+        // Get Gravity PDF font directory
+        $font_dir = WP_CONTENT_DIR . '/uploads/PDF_EXTENDED_TEMPLATES/fonts/';
+        
+        // Fallback to plugin directory if uploads doesn't exist
+        if (!is_dir($font_dir)) {
+            $font_dir = WP_PLUGIN_DIR . '/gravity-pdf/vendor/mpdf/mpdf/ttfonts/';
+        }
+        if (!is_dir($font_dir)) {
+            $font_dir = WP_PLUGIN_DIR . '/gravity-forms-pdf-extended/vendor/mpdf/mpdf/ttfonts/';
+        }
+        
+        // Get temp directory
+        $temp_dir = self::get_temp_dir();
+        if (!$temp_dir || !is_writable($temp_dir)) {
+            error_log('EL mPDF Generator: Temp directory not writable: ' . $temp_dir);
+            return false;
+        }
+        
+        // Create mPDF instance with configuration
+        $this->mpdf = new $mpdf_class([
+            'mode' => $this->config['mode'],
+            'format' => $this->config['format'],
+            'orientation' => $this->config['orientation'],
+            'margin_left' => $this->config['margin_left'],
+            'margin_right' => $this->config['margin_right'],
+            'margin_top' => $this->config['margin_top'],
+            'margin_bottom' => $this->config['margin_bottom'],
+            'margin_header' => $this->config['margin_header'],
+            'margin_footer' => $this->config['margin_footer'],
+            'default_font' => $this->config['default_font'],
+            'default_font_size' => $this->config['default_font_size'],
+            'tempDir' => $temp_dir,
+            'fontDir' => [$font_dir],
+            'autoScriptToLang' => true,
+            'baseScript' => 1,
+            'autoLangToFont' => true,
+        ]);
+        
+        // Verify mpdf was created
+        if ($this->mpdf === null) {
+            error_log('EL mPDF Generator: mPDF instance is null after creation');
+            return false;
+        }
+        
+        // Set document properties
+        $this->mpdf->SetTitle('Engagement Letter');
+        $this->mpdf->SetAuthor('Studio Legale Metta');
+        $this->mpdf->SetCreator('Engagement Letter System');
+        
+        // Enable character substitution
+        $this->mpdf->useSubstitutions = true;
+        
+        // Enable auto language detection
+        $this->mpdf->autoLangToFont = true;
+        $this->mpdf->autoScriptToLang = true;
+        
+        // Enable line break preservation
+        $this->mpdf->use_kwt = true;
+        $this->mpdf->keep_table_proportions = true;
+        
+        return true;
+        
+    } catch (\Exception $e) {
+        error_log('EL mPDF Generator: Failed to initialize - ' . $e->getMessage());
+        error_log('EL mPDF Generator: Stack trace - ' . $e->getTraceAsString());
+        $this->mpdf = null; // Ensure it's null on failure
+        return false;
+    }
+}
     
     /**
      * Set up HTML headers and footers with images and page numbers
@@ -219,34 +236,68 @@ class EL_MPDF_Generator {
             $this->mpdf->SetHTMLHeader($header_html);
         }
         
-        // Set HTML footer with ONLY reference, page numbers, and firm details
-        // NOTE: footer_content (general terms) is added as a body block, not in footer!
-        $footer_html = '<div style="font-family: \'Times New Roman\', Times, serif; font-size: 10pt;">';
-        
-        // Add page numbers and reference
-        $footer_html .= '<table width="100%" style="border-top: 1px solid #ccc; padding-top: 5px; font-size: 9pt;">
-            <tr>
-                <td width="33%" style="text-align: left;">' . esc_html($reference) . '</td>
-                <td width="34%" style="text-align: center;">Page {PAGENO} of {nbpg}</td>
-                <td width="33%" style="text-align: right;">' . date('d/m/Y') . '</td>
-            </tr>
-        </table>';
-        
-        // Add firm footer if present
-        if (!empty($firm_footer)) {
-            // Process images in footer too
-            $firm_footer = $this->process_images_for_mpdf($firm_footer);
-            
-            $footer_html .= '<div style="text-align: center; font-size: 8pt; margin-top: 5px;">' . 
-                           $firm_footer . 
-                           '</div>';
-        }
-        
-        $footer_html .= '</div>';
-        
-        $this->mpdf->SetHTMLFooter($footer_html);
+// Footer for pages 1 to second-to-last (with signature line)
+$footer_with_sig = '<table width="100%" style="font-family: \'Times New Roman\', Times, serif; font-size: 9pt; padding-top: 5px;">
+    <tr>
+        <td width="40%" style="text-align: left;">' . esc_html($reference) . ' - ' . date('d/m/Y') . '</td>
+        <td width="20%" style="text-align: center;">Page {PAGENO} of {nbpg}</td>
+        <td width="40%" style="text-align: right;">Client signature ………………………………</td>
+    </tr>
+</table>';
+
+// Footer for last page (no signature line)
+$footer_no_sig = '<table width="100%" style="font-family: \'Times New Roman\', Times, serif; font-size: 9pt; padding-top: 5px;">
+    <tr>
+        <td width="40%" style="text-align: left;">' . esc_html($reference) . ' - ' . date('d/m/Y') . '</td>
+        <td width="20%" style="text-align: center;">Page {PAGENO} of {nbpg}</td>
+        <td width="40%" style="text-align: right;"></td>
+    </tr>
+</table>';
+
+// Add firm footer to both
+if (!empty($firm_footer)) {
+    $firm_footer_html = '<div style="text-align: center; font-size: 8pt; margin-top: 5px;">' . 
+                       $this->process_images_for_mpdf($firm_footer) . 
+                       '</div>';
+    $footer_with_sig .= $firm_footer_html;
+    $footer_no_sig .= $firm_footer_html;
+}
+
+// Set default footer (with signature)
+$this->mpdf->SetHTMLFooter($footer_with_sig);
+
+// Set footer for last page (without signature) - we'll apply this after WriteHTML
+$this->footer_last_page = $footer_no_sig;
+    }
+    /**
+ * Strip black/dark backgrounds from HTML before PDF generation
+ *
+ * @param string $html HTML content
+ * @return string Cleaned HTML
+ */
+private function strip_dark_backgrounds($html) {
+    // Remove black backgrounds
+    $html = preg_replace('/background(-color)?\s*:\s*(#0{3,6}|black|rgb\(0,\s*0,\s*0\))[^;]*;?/i', '', $html);
+    
+    // Remove dark gray backgrounds (RGB values < 50)
+    $html = preg_replace('/background(-color)?\s*:\s*rgb\(([0-4][0-9]|[0-9]),\s*([0-4][0-9]|[0-9]),\s*([0-4][0-9]|[0-9])\)[^;]*;?/i', '', $html);
+    
+    // Add white background enforcement
+    $defensive_css = '<style>
+    * { background: white !important; }
+    body, html { background: white !important; color: #000 !important; }
+    img { background: transparent !important; }
+    </style>';
+    
+    // Insert before </head> or at start
+    if (stripos($html, '</head>') !== false) {
+        $html = str_ireplace('</head>', $defensive_css . '</head>', $html);
+    } else {
+        $html = $defensive_css . $html;
     }
     
+    return $html;
+}
     /**
      * Process images in HTML content for mPDF
      * Converts relative URLs to absolute URLs and ensures HTTPS
@@ -372,20 +423,29 @@ class EL_MPDF_Generator {
         
         try {
             // Create content blocks
-            $blocks = EL_Content_Blocks::create_blocks_from_data($assembled_data, $include_page_signatures);
-            
-            // Paginate
-            $engine = new EL_Page_Break_Engine($include_page_signatures, $signature_format);
-            $paginated = $engine->paginate($blocks);
-            
-            // Set up headers and footers with images and page numbers
-            $this->setup_headers_footers($assembled_data);
-            
-            // Generate HTML
-            $html = $this->build_full_html($paginated, $assembled_data);
-            
-            // Write to mPDF
-            $this->mpdf->WriteHTML($html);
+$blocks = EL_Content_Blocks::create_blocks_from_data($assembled_data, $include_page_signatures);
+
+// Paginate
+$engine = new EL_Page_Break_Engine($include_page_signatures, $signature_format);
+$paginated = $engine->paginate($blocks);
+
+// Set up headers and footers with images and page numbers
+$this->setup_headers_footers($assembled_data);
+
+// Generate HTML
+$html = $this->build_full_html($paginated, $assembled_data);
+
+// Strip dark backgrounds ← ADD THIS LINE
+$html = $this->strip_dark_backgrounds($html);
+
+// Write to mPDF
+$this->mpdf->WriteHTML($html);
+// Apply different footer to last page only
+if (isset($this->footer_last_page)) {
+    $total_pages = $this->mpdf->page;
+    $this->mpdf->page = $total_pages;
+    $this->mpdf->SetHTMLFooter($this->footer_last_page);
+}
             
             // Generate output path
             $reference = $assembled_data['meta']['reference'];
@@ -574,7 +634,7 @@ class EL_MPDF_Generator {
 /* Base typography - Force Times New Roman */
 body {
     font-family: "Times New Roman", Times, serif !important;
-    font-size: 12pt;
+    font-size: 10pt;
     line-height: 1.4;
     color: #000;
     margin: 0;
@@ -598,7 +658,7 @@ p {
 
 /* Headings */
 h1, .el-block-h1 {
-    font-size: 18pt;
+    font-size: 16pt;
     font-weight: bold;
     margin: 1.5em 0 0.5em 0;
     page-break-after: avoid;
@@ -621,7 +681,7 @@ h3, .el-block-h3 {
 /* Paragraphs */
 p, .el-block-paragraph {
     margin: 0 0 1em 0;
-    text-align: justify;
+    text-align: left;
 }
 
 /* Block elements */
@@ -676,13 +736,14 @@ p, .el-block-paragraph {
 
 .el-opening-left {
     float: left;
-    width: 48%;
+    width: 47%;
 }
 
 .el-opening-right {
     float: right;
-    width: 48%;
+    width: 52%;
     text-align: right;
+
 }
 
 /* Fee structure */
@@ -776,13 +837,13 @@ table {
 }
 
 th, td {
-    border: 1px solid #ccc;
+   
     padding: 0.5em;
     text-align: left;
 }
 
 th {
-    background: #f5f5f5;
+ 
     font-weight: bold;
 }
 

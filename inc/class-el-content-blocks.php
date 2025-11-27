@@ -32,8 +32,8 @@ class EL_Content_Blocks {
     /**
      * Margins (mm)
      */
-    const MARGIN_TOP = 25;
-    const MARGIN_BOTTOM = 25;
+    const MARGIN_TOP = 35;
+    const MARGIN_BOTTOM = 35;
     const MARGIN_LEFT = 15;
     const MARGIN_RIGHT = 15;
     
@@ -54,8 +54,8 @@ class EL_Content_Blocks {
      * Page capacity
      */
     const USABLE_HEIGHT_MM = 247;  // 297 - 25 - 25
-    const LINES_PER_PAGE = 52;
-    const LINES_PER_PAGE_WITH_SIGNATURE = 50;
+    const LINES_PER_PAGE = 35;
+    const LINES_PER_PAGE_WITH_SIGNATURE = 33;
     const BUFFER_ZONE_LINES = 4;
     
     /**
@@ -387,11 +387,70 @@ class EL_Content_Blocks {
             ['id' => 'ref_date']
         );
         
-        // 5. Products (services)
-        foreach ($assembled_data['products'] as $index => $product) {
-            $product_blocks = self::create_product_blocks($product, $index);
-            $blocks = array_merge($blocks, $product_blocks);
+// Products section - distinguish between main and optional products
+if (!empty($assembled_data['products'])) {
+    $main_product = null;
+    $optional_products = [];
+    
+    // Separate main product from optional products
+    foreach ($assembled_data['products'] as $product) {
+        if (!empty($product['is_main']) || $main_product === null) {
+            $main_product = $product;
+        } else {
+            $optional_products[] = $product;
         }
+    }
+    
+    // MAIN PRODUCT STRUCTURE
+    if ($main_product) {
+        // 1. EL Introduction Text (PDF only)
+        if (!empty($main_product['content']['introduction'])) {
+            $intro_content = self::clean_wysiwyg_content($main_product['content']['introduction']);
+            $blocks[] = self::create_block(self::BLOCK_PARAGRAPH, $intro_content, [
+                'id' => 'main_product_intro',
+                'product_id' => $main_product['id']
+            ]);
+        }
+        
+        // 2. Client Fillable PDF Text
+        if (!empty($main_product['content']['client_fillable_text'])) {
+            $fillable_content = self::clean_wysiwyg_content($main_product['content']['client_fillable_text']);
+            $blocks[] = self::create_block(self::BLOCK_PARAGRAPH, $fillable_content, [
+                'id' => 'main_product_fillable',
+                'product_id' => $main_product['id']
+            ]);
+        }
+        
+        // 3. Service Plan Table
+        if (!empty($main_product['content']['service_plan_table'])) {
+            $table_content = self::clean_wysiwyg_content($main_product['content']['service_plan_table']);
+            $blocks[] = self::create_block(self::BLOCK_PARAGRAPH, $table_content, [
+                'id' => 'main_product_table',
+                'product_id' => $main_product['id'],
+                'keep_together' => true
+            ]);
+        }
+    }
+    
+    // OPTIONAL PRODUCTS - just client_fillable_pdf_text for each
+    foreach ($optional_products as $index => $optional_product) {
+        if (!empty($optional_product['content']['client_fillable_text'])) {
+            $optional_content = self::clean_wysiwyg_content($optional_product['content']['client_fillable_text']);
+            $blocks[] = self::create_block(self::BLOCK_PARAGRAPH, $optional_content, [
+                'id' => 'optional_product_' . $index,
+                'product_id' => $optional_product['id']
+            ]);
+        }
+    }
+    
+    // PDF FOOTER NOTES (from main product only)
+    if ($main_product && !empty($main_product['content']['footer_notes'])) {
+        $footer_notes = '<p style="font-size: 9pt; font-style: italic;">' . esc_html($main_product['content']['footer_notes']) . '</p>';
+        $blocks[] = self::create_block(self::BLOCK_PARAGRAPH, $footer_notes, [
+            'id' => 'pdf_footer_notes'
+        ]);
+    }
+}
         
         // 6. Totals section
         $totals_content = self::build_totals_section($assembled_data['totals']);
@@ -408,33 +467,26 @@ class EL_Content_Blocks {
             );
         }
         
-        // 7. Footer boilerplate
-        if (!empty($assembled_data['boilerplate']['footer_content'])) {
-            $blocks[] = self::create_block(
-                self::BLOCK_PARAGRAPH,
-                $assembled_data['boilerplate']['footer_content'],
-                ['id' => 'footer_content']
-            );
-        }
-        
-        // 8. Signature block
-        if (!empty($assembled_data['boilerplate']['signature_block'])) {
-            $blocks[] = self::create_block(
-                self::BLOCK_SIGNATURE,
-                $assembled_data['boilerplate']['signature_block'],
-                ['id' => 'signature_block', 'keep_together' => true]
-            );
-        }
-        
-        // 9. Firm footer
-        if (!empty($assembled_data['boilerplate']['firm_footer'])) {
-            $blocks[] = self::create_block(
-                self::BLOCK_FOOTER,
-                $assembled_data['boilerplate']['firm_footer'],
-                ['id' => 'firm_footer']
-            );
-        }
-        
+// 7. Footer content (General Terms) - Process WYSIWYG content properly
+if (!empty($assembled_data['boilerplate']['footer_content'])) {
+    $footer_content = self::clean_wysiwyg_content($assembled_data['boilerplate']['footer_content']);
+    $blocks[] = self::create_block(
+        self::BLOCK_FOOTER,
+        $footer_content,
+        ['id' => 'footer_content', 'class' => 'el-general-terms']
+    );
+}
+
+// 8. Signature block - Process WYSIWYG content properly
+if (!empty($assembled_data['boilerplate']['signature_block'])) {
+    $signature_content = self::clean_wysiwyg_content($assembled_data['boilerplate']['signature_block']);
+    $blocks[] = self::create_block(
+        self::BLOCK_SIGNATURE,
+        $signature_content,
+        ['id' => 'signature_block', 'keep_together' => true]
+    );
+}
+           
         return $blocks;
     }
     
@@ -771,4 +823,51 @@ class EL_Content_Blocks {
         
         return $output;
     }
+    /**
+ * Clean WYSIWYG content for PDF while preserving formatting
+ * 
+ * Keeps: bold, italic, underline, lists, headings, tables, links
+ * Removes: WordPress-specific classes and attributes
+ * 
+ * @param string $content WYSIWYG HTML content
+ * @return string Cleaned HTML
+ */
+private static function clean_wysiwyg_content($content) {
+    if (empty($content)) {
+        return '';
+    }
+    
+    // Remove WordPress alignment classes
+    $content = preg_replace('/class=["\']alignleft["\']/', '', $content);
+    $content = preg_replace('/class=["\']alignright["\']/', '', $content);
+    $content = preg_replace('/class=["\']aligncenter["\']/', '', $content);
+    
+    // Remove WordPress image classes
+    $content = preg_replace('/class=["\']wp-image-\d+["\']/', '', $content);
+    $content = preg_replace('/class=["\']size-(full|medium|large|thumbnail)["\']/', '', $content);
+    $content = preg_replace('/class=["\']attachment-\w+["\']/', '', $content);
+    
+    // Remove WordPress caption classes
+    $content = preg_replace('/class=["\']wp-caption["\']/', '', $content);
+    $content = preg_replace('/class=["\']wp-caption-text["\']/', '', $content);
+    
+    // Remove empty class attributes
+    $content = preg_replace('/\s+class=["\']["\']/', '', $content);
+    
+    // Remove WordPress shortcodes
+    $content = preg_replace('/\[.*?\]/', '', $content);
+    
+    // Ensure proper paragraph spacing (only if content isn't already wrapped)
+    if (strpos($content, '<p>') === false && strpos($content, '<ul>') === false && 
+        strpos($content, '<ol>') === false && strpos($content, '<table>') === false &&
+        strpos($content, '<h') === false) {
+        // Only apply wpautop if there are no block-level elements
+        $content = wpautop($content);
+    }
+    
+    // Clean up multiple consecutive line breaks
+    $content = preg_replace('/(<br\s*\/?>[\s]*){3,}/', '<br><br>', $content);
+    
+    return $content;
+}
 }

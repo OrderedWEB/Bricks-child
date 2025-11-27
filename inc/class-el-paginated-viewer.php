@@ -866,8 +866,11 @@ class EL_Paginated_Viewer {
                 
                 // Set canvas dimensions
                 canvas.height = scaledViewport.height;
-                canvas.width = scaledViewport.width;
+                canvas.wid
                 
+                // Fill canvas with white background before rendering
+ctx.fillStyle = '#ffffff';
+ctx.fillRect(0, 0, canvas.width, canvas.height);
                 // Render
                 const renderContext = {
                     canvasContext: ctx,

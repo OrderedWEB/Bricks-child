@@ -321,72 +321,324 @@ class EL_Page_Break_Engine {
         return ['first' => null, 'second' => $block];
     }
     
-    /**
-     * Split a paragraph block
-     */
-    private function split_paragraph($block, $split_at) {
-        $content = $block['content'];
-        $text = strip_tags($content);
-        $chars_per_line = EL_Content_Blocks::CHARS_PER_LINE;
-        $split_char_pos = $split_at * $chars_per_line;
-        
-        $break_pos = $this->find_break_point($text, $split_char_pos);
-        
-        if ($break_pos === false || $break_pos >= strlen($text) - 50) {
-            return ['first' => null, 'second' => $block];
-        }
-        
-        $first_text = substr($text, 0, $break_pos);
-        $second_text = substr($text, $break_pos);
-        
-        $first_block = EL_Content_Blocks::create_block(
-            $block['type'],
-            '<p>' . esc_html(trim($first_text)) . '</p>',
-            array_merge($block['options'], ['id' => $block['options']['id'] . '_a'])
-        );
-        
-        $second_block = EL_Content_Blocks::create_block(
-            $block['type'],
-            '<p>' . esc_html(trim($second_text)) . '</p>',
-            array_merge($block['options'], ['id' => $block['options']['id'] . '_b'])
-        );
-        
-        return ['first' => $first_block, 'second' => $second_block];
+/**
+ * Split a paragraph block at sentence boundaries (list-aware)
+ */
+private function split_paragraph($block, $split_at) {
+    $content = $block['content'];
+    
+    // Check if content contains a list (both ordered and unordered)
+    $has_list = (strpos($content, '<ul') !== false || 
+                 strpos($content, '<ol') !== false || 
+                 strpos($content, '<li') !== false);
+    
+    if ($has_list) {
+        // Content has a list - try to split between list items, not within them
+        return $this->split_list_content($block, $split_at);
     }
     
-    /**
-     * Find a good break point in text
-     */
-    private function find_break_point($text, $target_pos) {
-        $search_start = max(0, $target_pos - 100);
-        $search_end = min(strlen($text), $target_pos + 100);
-        $search_region = substr($text, $search_start, $search_end - $search_start);
+    // Regular paragraph splitting logic
+    $text = wp_strip_all_tags($content);
+    $text = html_entity_decode($text, ENT_QUOTES, 'UTF-8');
+    
+    $chars_per_line = EL_Content_Blocks::CHARS_PER_LINE;
+    $target_char_pos = $split_at * $chars_per_line;
+    
+    // Find the best sentence break near the target position
+    $break_pos = $this->find_sentence_break($text, $target_char_pos);
+    
+    // If no good break found, or break is too close to end, don't split
+    if ($break_pos === false || $break_pos >= strlen($text) - 100) {
+        return ['first' => null, 'second' => $block];
+    }
+    
+    // If break is too early (less than minimum lines), don't split
+    $min_chars = 2 * $chars_per_line; // At least 2 lines
+    if ($break_pos < $min_chars) {
+        return ['first' => null, 'second' => $block];
+    }
+    
+    // Split the text at the sentence boundary
+    $first_text = trim(substr($text, 0, $break_pos));
+    $second_text = trim(substr($text, $break_pos));
+    
+    // Preserve HTML structure if original content had formatting
+    if (strpos($content, '<') !== false) {
+        // Content has HTML - try to preserve it
+        $first_html = $this->preserve_html_split($content, $first_text);
+        $second_html = $this->preserve_html_split($content, $second_text);
+    } else {
+        // Plain text - wrap in paragraphs
+        $first_html = '<p>' . esc_html($first_text) . '</p>';
+        $second_html = '<p>' . esc_html($second_text) . '</p>';
+    }
+    
+    $first_block = EL_Content_Blocks::create_block(
+        $block['type'],
+        $first_html,
+        array_merge($block['options'], ['id' => $block['options']['id'] . '_a'])
+    );
+    
+    $second_block = EL_Content_Blocks::create_block(
+        $block['type'],
+        $second_html,
+        array_merge($block['options'], ['id' => $block['options']['id'] . '_b'])
+    );
+    
+    return ['first' => $first_block, 'second' => $second_block];
+}
+
+
+/**
+ * Split content that contains lists - respects list item boundaries
+ */
+private function split_list_content($block, $split_at) {
+    $content = $block['content'];
+    $chars_per_line = EL_Content_Blocks::CHARS_PER_LINE;
+    $target_char_pos = $split_at * $chars_per_line;
+    
+    // Extract list items - handle both <li> and potentially malformed lists
+    // Use DOTALL (s) modifier to handle multiline list items
+    preg_match_all('/<li[^>]*>.*?<\/li>/is', $content, $list_items, PREG_OFFSET_CAPTURE);
+    
+    error_log('EL Pagination: Detected ' . count($list_items[0]) . ' list items in content of length ' . strlen($content));
+    
+    if (empty($list_items[0])) {
+        // No list items found - try alternate detection for bullets/numbers
+        error_log('EL Pagination: No <li> tags found, checking for bullet paragraphs');
         
-        $patterns = ['. ', '? ', '! ', ".\n", "?\n", "!\n"];
-        $best_pos = false;
-        $best_distance = PHP_INT_MAX;
+        // Look for paragraphs that start with bullet-like characters or numbers
+        preg_match_all('/<p[^>]*>\s*[•●○■□▪▫–—−\d]+[\.\)]\s*.*?<\/p>/is', $content, $bullet_paras, PREG_OFFSET_CAPTURE);
         
-        foreach ($patterns as $pattern) {
-            $pos = strrpos(substr($search_region, 0, $target_pos - $search_start + 50), $pattern);
-            if ($pos !== false) {
-                $actual_pos = $search_start + $pos + strlen($pattern);
-                $distance = abs($actual_pos - $target_pos);
-                if ($distance < $best_distance) {
-                    $best_distance = $distance;
-                    $best_pos = $actual_pos;
-                }
+        if (!empty($bullet_paras[0])) {
+            error_log('EL Pagination: Found ' . count($bullet_paras[0]) . ' bullet/numbered paragraphs');
+            $list_items = $bullet_paras;
+        } else {
+            // Really no list structure - DON'T SPLIT AT ALL
+            error_log('EL Pagination: No list structure detected, moving entire block to next page');
+            return ['first' => null, 'second' => $block];
+        }
+    }
+    
+    // If list has 3 or fewer items, don't split at all
+    if (count($list_items[0]) <= 3) {
+        error_log('EL Pagination: Short list (' . count($list_items[0]) . ' items), keeping together');
+        return ['first' => null, 'second' => $block];
+    }
+    
+    // Find which list item to split at
+    $best_split_index = -1;
+    $best_distance = PHP_INT_MAX;
+    
+    foreach ($list_items[0] as $index => $item) {
+        list($item_html, $item_offset) = $item;
+        
+        // Calculate distance from target position
+        $distance = abs($item_offset - $target_char_pos);
+        
+        error_log(sprintf('EL Pagination: Item %d at offset %d, target %d, distance: %d',
+            $index, $item_offset, $target_char_pos, $distance));
+        
+        // Must be before target position (not after) and closest to target
+        if ($item_offset <= $target_char_pos && $distance < $best_distance) {
+            $best_distance = $distance;
+            $best_split_index = $index;
+        }
+    }
+    
+    error_log('EL Pagination: Best split index: ' . $best_split_index . ' out of ' . count($list_items[0]) . ' items');
+    
+    // Need at least 2 list items on first page
+    if ($best_split_index < 1) {
+        error_log('EL Pagination: Not enough items for first page, moving entire block');
+        return ['first' => null, 'second' => $block];
+    }
+    
+    // Need at least 2 list items on second page  
+    $remaining_items = count($list_items[0]) - $best_split_index - 1;
+    if ($remaining_items < 2) {
+        error_log('EL Pagination: Not enough items for second page (' . $remaining_items . ' remaining), moving entire block');
+        return ['first' => null, 'second' => $block];
+    }
+    
+    // Split after the chosen list item
+    $split_item = $list_items[0][$best_split_index];
+    $split_offset = $split_item[1] + strlen($split_item[0]);
+    
+    error_log('EL Pagination: Splitting at offset ' . $split_offset . ' (after item ' . $best_split_index . ')');
+    
+    $first_html = substr($content, 0, $split_offset);
+    $second_html = substr($content, $split_offset);
+    
+    // Ensure proper list wrapper closing/opening
+    $first_html = $this->ensure_list_closure($first_html);
+    $second_html = $this->ensure_list_opening($second_html);
+    
+    $first_block = EL_Content_Blocks::create_block(
+        $block['type'],
+        $first_html,
+        array_merge($block['options'], ['id' => $block['options']['id'] . '_a'])
+    );
+    
+    $second_block = EL_Content_Blocks::create_block(
+        $block['type'],
+        $second_html,
+        array_merge($block['options'], ['id' => $block['options']['id'] . '_b'])
+    );
+    
+    error_log('EL Pagination: Successfully split list content into two blocks');
+    return ['first' => $first_block, 'second' => $second_block];
+}
+
+/**
+ * Ensure list HTML has proper closing tags
+ */
+private function ensure_list_closure($html) {
+    // Count opening and closing ul/ol tags
+    $ul_open = substr_count($html, '<ul');
+    $ul_close = substr_count($html, '</ul>');
+    $ol_open = substr_count($html, '<ol');
+    $ol_close = substr_count($html, '</ol>');
+    
+    // Add missing closing tags
+    while ($ul_close < $ul_open) {
+        $html .= '</ul>';
+        $ul_close++;
+    }
+    
+    while ($ol_close < $ol_open) {
+        $html .= '</ol>';
+        $ol_close++;
+    }
+    
+    return $html;
+}
+
+/**
+ * Ensure list HTML has proper opening tags
+ */
+private function ensure_list_opening($html) {
+    // If starts with </li>, we need to add opening <ul> or <ol>
+    if (preg_match('/^\s*<li/i', $html)) {
+        // Determine if it was a ul or ol (check for ordered list attributes)
+        if (preg_match('/<li[^>]*value=/i', $html)) {
+            $html = '<ol>' . $html;
+        } else {
+            $html = '<ul>' . $html;
+        }
+    }
+    
+    return $html;
+}
+/**
+ * Find best sentence break near target position
+ * Prioritizes: period, question mark, exclamation mark
+ */
+private function find_sentence_break($text, $target_pos) {
+    // Search window: 150 chars before and after target
+    $search_before = 150;
+    $search_after = 150;
+    
+    $search_start = max(0, $target_pos - $search_before);
+    $search_end = min(strlen($text), $target_pos + $search_after);
+    
+    // Extract search region
+    $region_before = substr($text, $search_start, $target_pos - $search_start);
+    $region_after = substr($text, $target_pos, $search_end - $target_pos);
+    
+    // Sentence ending patterns (in priority order)
+    $patterns = [
+        '. ',      // Period followed by space
+        '! ',      // Exclamation followed by space
+        '? ',      // Question followed by space
+        ".\n",     // Period followed by newline
+        "!\n",     // Exclamation followed by newline
+        "?\n",     // Question followed by newline
+    ];
+    
+    $best_pos = false;
+    $best_distance = PHP_INT_MAX;
+    
+    // Look for sentence endings BEFORE target (preferred)
+    foreach ($patterns as $pattern) {
+        $pos = strrpos($region_before, $pattern);
+        if ($pos !== false) {
+            // Calculate actual position and distance from target
+            $actual_pos = $search_start + $pos + strlen($pattern);
+            $distance = abs($actual_pos - $target_pos);
+            
+            // Must be at least 50 chars from start (avoid tiny first chunk)
+            if ($actual_pos >= 100 && $distance < $best_distance) {
+                $best_distance = $distance;
+                $best_pos = $actual_pos;
             }
         }
-        
-        if ($best_pos === false) {
-            $space_pos = strrpos(substr($text, 0, $target_pos + 20), ' ');
-            if ($space_pos !== false && $space_pos > $target_pos - 50) {
-                $best_pos = $space_pos + 1;
-            }
-        }
-        
+    }
+    
+    // If found sentence break before target within 100 chars, use it
+    if ($best_pos !== false && $best_distance <= 100) {
         return $best_pos;
     }
+    
+    // Look for sentence endings AFTER target (acceptable)
+    foreach ($patterns as $pattern) {
+        $pos = strpos($region_after, $pattern);
+        if ($pos !== false) {
+            $actual_pos = $target_pos + $pos + strlen($pattern);
+            $distance = abs($actual_pos - $target_pos);
+            
+            // Only use if close to target (within 100 chars)
+            if ($distance <= 100 && $distance < $best_distance) {
+                $best_distance = $distance;
+                $best_pos = $actual_pos;
+            }
+        }
+    }
+    
+    // If still no sentence break, look for paragraph breaks
+    if ($best_pos === false) {
+        $para_pos = strrpos($region_before, "\n\n");
+        if ($para_pos !== false) {
+            $best_pos = $search_start + $para_pos + 2;
+        }
+    }
+    
+    // Last resort: find nearest space (but avoid this if possible)
+    if ($best_pos === false) {
+        $space_before = strrpos($region_before, ' ');
+        if ($space_before !== false && $space_before > strlen($region_before) - 50) {
+            $best_pos = $search_start + $space_before + 1;
+        }
+    }
+    
+    return $best_pos;
+}
+
+/**
+ * Attempt to preserve HTML structure when splitting
+ */
+private function preserve_html_split($original_html, $target_text) {
+    // Simple approach: if target text is at start of content, extract HTML up to that point
+    // For more complex cases, fall back to plain text
+    
+    $plain = wp_strip_all_tags($original_html);
+    $target_length = strlen($target_text);
+    
+    // Check if target matches start of plain text
+    if (strpos($plain, $target_text) === 0) {
+        // Target is at beginning - try to extract corresponding HTML
+        // This is complex, so for now just wrap in paragraph
+        return '<p>' . esc_html($target_text) . '</p>';
+    }
+    
+    // Check if target matches end of plain text
+    if (substr($plain, -$target_length) === $target_text) {
+        return '<p>' . esc_html($target_text) . '</p>';
+    }
+    
+    // Complex case - just wrap text
+    return wpautop(esc_html($target_text));
+}
     
     /**
      * Split a list block
@@ -467,22 +719,23 @@ class EL_Page_Break_Engine {
         $html = '';
         $total_pages = $paginated['total_pages'];
         
-        foreach ($paginated['pages'] as $page) {
-            $page_num = $page['number'];
-            $is_last_page = ($page_num === $total_pages);
-            
-            $html .= sprintf('<div class="el-page" data-page="%d" data-total="%d">', $page_num, $total_pages);
-            
-            foreach ($page['blocks'] as $block) {
-                $html .= $this->render_block($block);
-            }
-            
-            if ($this->include_page_signatures && !$is_last_page) {
-                $html .= $this->render_page_signature($page_num, $total_pages);
-            }
-            
-            $html .= '</div>';
-        }
+foreach ($paginated['pages'] as $page) {
+    $page_num = $page['number'];
+    $is_last_page = ($page_num === $total_pages);
+    
+    $html .= sprintf('<div class="el-page" data-page="%d" data-total="%d">', $page_num, $total_pages);
+    
+    foreach ($page['blocks'] as $block) {
+        $html .= $this->render_block($block);
+    }
+    
+    if ($this->include_page_signatures && !$is_last_page) {
+        $html .= $this->render_page_signature($page_num, $total_pages);
+    }
+    
+    $html .= '</div>';
+}
+    
         
         return $html;
     }
