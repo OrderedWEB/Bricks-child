@@ -16,6 +16,9 @@
  */
 
 if (!defined('ABSPATH')) exit;
+error_log('🟢 GROUPED PRODUCTS FILE LOADING...');
+error_log('WC available: ' . (function_exists('WC') ? 'YES' : 'NO'));
+error_log('Session available: ' . (function_exists('el_session_active') ? 'YES' : 'NO'));
 
 // Dependency guards
 if (!function_exists('WC')) {

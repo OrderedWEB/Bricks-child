@@ -6,10 +6,10 @@
   "use strict";
 
   // Check if we're on the wizard page
-if (!$(".el-wizard-container").length && !$(".brxe-tabs-nested").length) {
-  console.log("EL Wizard: Container not found");
-  return;
-}
+  if (!$(".el-wizard-container").length && !$(".brxe-tabs-nested").length) {
+    console.log("EL Wizard: Container not found");
+    return;
+  }
 
   console.log("🚀 EL Wizard 2.0: Initializing...");
 
@@ -153,135 +153,44 @@ if (!$(".el-wizard-container").length && !$(".brxe-tabs-nested").length) {
         self.handleNoClientStart($(this));
       });
     },
-jQuery(document).ready(function($) {
-    // Load Paged.js library once
-    if (!window.Paged) {
-        const script = document.createElement('script');
-        script.src = 'https://unpkg.com/pagedjs@0.4.3/dist/paged.polyfill.js';
-        script.onload = function() {
-            console.log('✓ Paged.js loaded');
-        };
-        document.head.appendChild(script);
-    }
-    
-    // Listen for PDF preview load
-    $(document).on('DOMNodeInserted', '#el-pdf-preview-container', function() {
-        if ($('#paged-source').length && window.Paged) {
-            setTimeout(function() {
-                initPagedPreview();
-            }, 100);
-        }
-    });
-    
-    function initPagedPreview() {
-        const sourceContent = document.querySelector('#paged-source');
-        const targetContainer = document.querySelector('#paged-preview-target');
-        const loading = document.querySelector('.el-loading');
-        
-        if (!sourceContent || !targetContainer || !window.Paged) return;
-        
-        console.log('Initializing Paged.js preview...');
-        
-        const paged = new window.Paged.Previewer();
-        paged.preview(sourceContent.innerHTML, [], targetContainer)
-            .then(() => {
-                console.log('✓ Pages generated');
-                if (loading) loading.style.display = 'none';
-                
-                const pageCount = document.querySelectorAll('.pagedjs_page').length;
-                console.log('Total pages:', pageCount);
-            })
-            .catch(err => {
-                console.error('Paged.js error:', err);
-                if (loading) {
-                    loading.innerHTML = '<p style="color: red;">Error: ' + err.message + '</p>';
-                }
-            });
-    }
-});
+
     /**
      * =================================================================
      * TAB NAVIGATION
      * =================================================================
      */
-switchToTab: function(tabNumber) {
-    console.log('🎯 switchToTab called:', tabNumber);
-    
-    // Save current tab position
-    if (el_ajax && el_ajax.ajax_url) {
+    switchToTab: function (tabNumber) {
+      console.log("🎯 switchToTab called:", tabNumber);
+
+      // Save current tab position
+      if (typeof el_ajax !== "undefined" && el_ajax.ajax_url) {
         $.ajax({
-            url: el_ajax.ajax_url,
-            type: 'POST',
-            data: {
-                action: 'el_save_current_tab',
-                tab_number: tabNumber
-            }
+          url: el_ajax.ajax_url,
+          type: "POST",
+          data: {
+            action: "el_save_current_tab",
+            tab_number: tabNumber,
+            nonce: el_ajax.nonce,
+          },
         });
-    }
-    
-    var $targetTab = $(`.el-tab-${tabNumber}, [data-tab="${tabNumber}"]`).first();
+      }
+
+      var $targetTab = $(
+        `.el-tab-${tabNumber}, [data-tab="${tabNumber}"]`
+      ).first();
+
+      // Check if tab exists
+      if (!$targetTab.length) {
+        console.warn("Tab not found:", tabNumber);
         return;
-    }
-    
-    // Click the tab
-    $targetTab.trigger('click');
-    
-    // Scroll to tab content if it exists
-    var $tabContent = $(`.tab-pane:visible`).first();
-    if ($tabContent.length && $tabContent.offset()) {
-        $('html, body').animate({
-            scrollTop: $tabContent.offset().top - 100
-        }, 500);
-    }
-    
-    console.log('✅ Switched to tab:', tabNumber);
-}, 
+      }
 
-// Next method should start here
-onTabActivated: function(tabNumber) {
-    
-    // Scroll to tab content if it exists
-    var $tabContent = $(`.tab-pane:visible`).first();
-    if ($tabContent.length && $tabContent.offset()) {
-        $('html, body').animate({
-            scrollTop: $tabContent.offset().top - 100
-        }, 500);
-    }
-    
-    console.log('✅ Switched to tab:', tabNumber);
-}
+      // Click the tab
+      $targetTab.trigger("click");
 
+      // Update state
       var oldTab = this.currentTab;
       this.currentTab = tabNumber;
-
-      // Method 1: Custom tabs
-      $(".el-tab-content").removeClass("active").hide();
-      $("#el-tab-" + tabNumber)
-        .addClass("active")
-        .fadeIn();
-
-      // Method 2: Bricks tabs panes
-      $(".brxe-tabs-pane").removeClass("active brx-open");
-      $(
-        '.brxe-tabs-pane[data-tab="' +
-          tabNumber +
-          '"], .brxe-tabs-pane:eq(' +
-          (tabNumber - 1) +
-          ")"
-      ).addClass("active brx-open");
-
-      // Method 3: Bricks tab buttons
-      $(".brxe-tabs-nav .brxe-tab, .tab-title")
-        .removeClass("active brx-open")
-        .attr("aria-selected", "false");
-      $(
-        ".brxe-tabs-nav .brxe-tab:eq(" +
-          (tabNumber - 1) +
-          "), .tab-title.el-tab-" +
-          tabNumber
-      )
-        .addClass("active brx-open")
-        .attr("aria-selected", "true");
 
       // Update custom navigation
       $(".el-tab-nav").removeClass("active");
@@ -293,13 +202,18 @@ onTabActivated: function(tabNumber) {
       // Tab-specific initialization
       this.onTabActivated(tabNumber, oldTab);
 
-      // Smooth scroll to top
-      $("html, body").animate(
-        {
-          scrollTop: $(".el-wizard-container, .brxe-tabs").offset().top - 100,
-        },
-        500
-      );
+      // Scroll to tab content if it exists
+      var $tabContent = $(`.tab-pane:visible`).first();
+      if ($tabContent.length && $tabContent.offset()) {
+        $("html, body").animate(
+          {
+            scrollTop: $tabContent.offset().top - 100,
+          },
+          500
+        );
+      }
+
+      console.log("✅ Switched to tab:", tabNumber);
     },
 
     updateProgressBar: function (step) {
@@ -360,16 +274,17 @@ onTabActivated: function(tabNumber) {
           form_data: formData,
           nonce: el_ajax.nonce,
         },
-success: function (response) {
-    if (response.success) {
-        // Update button state
-        $button.text("Added").addClass("el-btn-success");
+        success: function (response) {
+          if (response.success) {
+            // Update button state
+            $submitBtn.val("Saved!").addClass("el-btn-success");
 
-        // Show success message
-        self.showNotification(
-            productName + " added to engagement letter",
-            "success"
-        );
+            // Show success message
+            self.showNotification(
+              "Client details saved successfully",
+              "success"
+            );
+
             // Auto-switch to Tab 2
             setTimeout(function () {
               self.switchToTab(2);
@@ -388,6 +303,7 @@ success: function (response) {
         },
       });
     },
+
     handleNoClientStart: function ($button) {
       var self = this;
 
@@ -427,49 +343,9 @@ success: function (response) {
             console.log("✅ Client data stored:", self.clientData);
             self.showNotification("✓ No client mode activated", "success");
 
-            // Debug: Check what's available
-            console.log("📍 Checking tab elements...");
-            console.log(
-              "Tab 2 button (#brxe-pxdrgk):",
-              $("#brxe-pxdrgk").length
-            );
-            console.log("Tab 2 button HTML:", $("#brxe-pxdrgk").html());
-            console.log("All tab titles:", $(".tab-title").length);
-
-            // Try multiple methods
+            // Switch to Tab 2
             setTimeout(function () {
-              console.log("🚀 Attempting tab switch...");
-
-              // Method 1: Native click event
-              var tab2Element = document.getElementById("brxe-pxdrgk");
-              if (tab2Element) {
-                console.log("Method 1: Native click on #brxe-pxdrgk");
-                tab2Element.click();
-              }
-
-              // Method 2: jQuery click
-              setTimeout(function () {
-                console.log("Method 2: jQuery click on #brxe-pxdrgk");
-                $("#brxe-pxdrgk").click();
-              }, 100);
-
-              // Method 3: Trigger on .el-tab-2
-              setTimeout(function () {
-                console.log("Method 3: Click on .el-tab-2");
-                $(".el-tab-2").click();
-              }, 200);
-
-              // Method 4: Use switchToTab
-              setTimeout(function () {
-                console.log("Method 4: switchToTab(2)");
-                self.switchToTab(2);
-              }, 300);
-
-              // Method 5: Find and click the second tab-title
-              setTimeout(function () {
-                console.log("Method 5: Click second .tab-title");
-                $(".tab-title").eq(1).click();
-              }, 400);
+              self.switchToTab(2);
             }, 500);
           } else {
             console.log("❌ AJAX failed:", response.data.message);
@@ -482,13 +358,12 @@ success: function (response) {
         },
         error: function (xhr, status, error) {
           console.log("🔴 AJAX ERROR:", error);
-          console.log("Status:", status);
-          console.log("Response:", xhr.responseText);
           self.showNotification("Connection error. Please try again.", "error");
           $button.html(originalHtml).prop("disabled", false);
         },
       });
     },
+
     /**
      * =================================================================
      * TAB 2: TEMPLATE SELECTION
@@ -840,7 +715,9 @@ success: function (response) {
             },
             success: function () {
               // Reset form
-              $("#gform_1")[0].reset();
+              if ($("#gform_1").length) {
+                $("#gform_1")[0].reset();
+              }
 
               // Clear stored data
               self.clientData = {};
@@ -927,52 +804,62 @@ success: function (response) {
 })(jQuery);
 
 // Wait for page to fully load
-window.addEventListener('load', function() {
-    // Wait a tiny bit more
-    setTimeout(function() {
-        
-        // Get ALL elements with class="dotty"
-        var elements = document.querySelectorAll('.dotty');
-        var dotString = '...............'; // 15 dots
-        
-        console.log('Found ' + elements.length + ' elements with class="dotty"');
-        
-        // Process each one
-        for (var i = 0; i < elements.length; i++) {
-            var element = elements[i];
-            
-            // Get the text content
-            var text = element.textContent || element.innerText || '';
-            
-            // Remove whitespace
-            var cleaned = text.replace(/\s/g, '');
-            
-            console.log('Element ' + i + ': "' + text + '" -> cleaned: "' + cleaned + '" -> empty: ' + (cleaned === ''));
-            
-            // If empty, add dots
-            if (cleaned === '') {
-                element.textContent = dotString;
-                element.style.color = '#999';
-                element.style.fontFamily = 'monospace';
-                console.log('✅ Added dots to element ' + i);
-            } else {
-                console.log('ℹ️ Element ' + i + ' has content, skipping');
-            }
-        }
-        
-        // Also check for id="dotty"
-        var idElement = document.getElementById('dotty');
-        if (idElement) {
-            var idText = (idElement.textContent || idElement.innerText || '').replace(/\s/g, '');
-            if (idText === '') {
-                idElement.textContent = dotString;
-                idElement.style.color = '#999';
-                idElement.style.fontFamily = 'monospace';
-                console.log('✅ Added dots to id="dotty"');
-            }
-        }
-        
-        console.log('✅ DottyFields complete!');
-        
-    }, 500); // Wait 500ms after page loads
+window.addEventListener("load", function () {
+  // Wait a tiny bit more
+  setTimeout(function () {
+    // Get ALL elements with class="dotty"
+    var elements = document.querySelectorAll(".dotty");
+    var dotString = "..............."; // 15 dots
+
+    console.log("Found " + elements.length + ' elements with class="dotty"');
+
+    // Process each one
+    for (var i = 0; i < elements.length; i++) {
+      var element = elements[i];
+
+      // Get the text content
+      var text = element.textContent || element.innerText || "";
+
+      // Remove whitespace
+      var cleaned = text.replace(/\s/g, "");
+
+      console.log(
+        "Element " +
+          i +
+          ': "' +
+          text +
+          '" -> cleaned: "' +
+          cleaned +
+          '" -> empty: ' +
+          (cleaned === "")
+      );
+
+      // If empty, add dots
+      if (cleaned === "") {
+        element.textContent = dotString;
+        element.style.color = "#999";
+        element.style.fontFamily = "monospace";
+        console.log("✅ Added dots to element " + i);
+      } else {
+        console.log("ℹ️ Element " + i + " has content, skipping");
+      }
+    }
+
+    // Also check for id="dotty"
+    var idElement = document.getElementById("dotty");
+    if (idElement) {
+      var idText = (idElement.textContent || idElement.innerText || "").replace(
+        /\s/g,
+        ""
+      );
+      if (idText === "") {
+        idElement.textContent = dotString;
+        idElement.style.color = "#999";
+        idElement.style.fontFamily = "monospace";
+        console.log('✅ Added dots to id="dotty"');
+      }
+    }
+
+    console.log("✅ DottyFields complete!");
+  }, 500); // Wait 500ms after page loads
 });

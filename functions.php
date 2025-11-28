@@ -119,6 +119,7 @@ function el_load_feature_modules() {
         'features/payment-handler.php',   // Payment/order creation
         'features/signature-collection.php', // Client signatures
         'features/encryption.php',        // Data encryption/security
+        'features/start-over.php',          // Startover code
     ];
     
     foreach ($feature_files as $file) {
@@ -145,6 +146,8 @@ add_action('init', 'el_load_feature_modules', 20);
 function el_load_tab_modules() {
     $tab_files = [
         'tabs/tab1-client.php',      // Client details form
+        'tabs/tab1-email-autocomplete.php',// Email autocomplete on GF field
+        'tabs/tab1-user-handler.php',        // Prevents duplicate registration)
         'tabs/tab2-templates.php',   // Template selection
         'tabs/tab3-cart.php',        // Cart editor (glass morphism)
         'tabs/tab4-preview.php',     // PDF preview generation
@@ -312,9 +315,49 @@ function el_enqueue_ajax_nonce() {
         error_log('[EL System] AJAX nonces enqueued on page: ' . get_permalink());
     }
 }
+add_action('wp_footer', function() {
+    if (!is_page('create-engagement-letter')) return;
+    ?>
+    <script>
+    var el_ajax = {
+        ajax_url: '<?php echo admin_url('admin-ajax.php'); ?>',
+        nonce: '<?php echo wp_create_nonce(EL_NONCE); ?>'
+    };
+    var elAjax = {
+        ajaxUrl: el_ajax.ajax_url,  // ← Changed to ajaxUrl (camelCase)
+        nonce: el_ajax.nonce
+    };
+    console.log('✅ Nonces loaded:', elAjax);
+    </script>
+    <?php
+}, 999);
+
 
 add_action('wp_enqueue_scripts', 'el_enqueue_ajax_nonce', 1);
+/**
+ * Enqueue wizard JavaScript
+ */
+function el_enqueue_wizard_js() {
+    if (!el_is_wizard_page()) {
+        return;
+    }
+    
+    wp_enqueue_script(
+        'el-wizard',
+        get_stylesheet_directory_uri() . '/js/el-wizard.js',
+        ['jquery'],
+        '1.0.0',
+        true
+    );
+    
+    // Also localize the el_ajax variable for consistency
+    wp_localize_script('el-wizard', 'el_ajax', [
+        'ajax_url' => admin_url('admin-ajax.php'),
+        'nonce' => wp_create_nonce(EL_NONCE),
+    ]);
+}
 
+add_action('wp_enqueue_scripts', 'el_enqueue_wizard_js', 20);
 // ============================================
 // BACKWARDS COMPATIBILITY
 // Stubs for any old function calls
@@ -452,15 +495,8 @@ if (defined('EL_DEBUG_MODE') && EL_DEBUG_MODE) {
     error_log('[EL System] Bootstrap complete - version ' . (defined('EL_VERSION') ? EL_VERSION : 'UNKNOWN'));
 }
 
-/**
- * All modules loaded successfully!
- * 
- * Load order guaranteed:
- * ✅ Constants loaded first
- * ✅ Session starts on init priority 1
- * ✅ Helpers available before merge tags
- * ✅ WooCommerce modules load after WC is ready
- * ✅ All dependencies satisfied
- * 
- * System is ready for use.
- */
+add_action('wp_footer', function() {
+    if (!is_admin()) {
+        echo '<script>console.log("Is wizard page:", ' . (el_is_wizard_page() ? 'true' : 'false') . ');</script>';
+    }
+}, 9999);
