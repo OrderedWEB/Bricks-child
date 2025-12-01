@@ -681,38 +681,48 @@ function el_enqueue_tab2_script() {
                 });
             });
             
+       
             // Select grouped product
-            $(document).on('click', '.el-select-grouped', function(e) {
-                e.stopPropagation();
-                var productId = $(this).data('product-id');
-                var button = $(this);
-                
-                button.prop('disabled', true).text('Processing...');
-                
-                $.ajax({
-                    url: elAjax.ajaxUrl,
-                    type: 'POST',
-                    data: {
-                        action: 'el_store_grouped_parent',
-                        nonce: elAjax.nonce,
-                        product_id: productId
-                    },
-                    success: function(response) {
-                        if (response.success) {
-                            // Navigate to Tab 3
-                            $('" . el_get_tab_selector(3) . "').click();
-                        } else {
-                            alert('Error: ' + (response.data.message || 'Failed to select bundle'));
-                            button.prop('disabled', false).text('Select Services →');
-                        }
-                    },
-                    error: function() {
-                        alert('Network error. Please try again.');
-                        button.prop('disabled', false).text('Select Services →');
-                    }
-                });
-            });
+$(document).on('click', '.el-select-grouped', function(e) {
+    e.stopPropagation();
+    
+    console.log('🔵 GROUPED CLICKED!');
+    
+    var productId = $(this).data('product-id');
+    var button = $(this);
+    
+    console.log('Product ID:', productId);
+    console.log('elAjax:', elAjax);
+    
+    button.prop('disabled', true).text('Processing...');
+    
+    $.ajax({
+        url: elAjax.ajaxUrl,
+        type: 'POST',
+        data: {
+            action: 'el_store_grouped_parent',
+            nonce: elAjax.nonce,
+            product_id: productId
+        },
+        success: function(response) {
+            console.log('✅ Response:', response);
             
+            if (response.success) {
+                $('" . el_get_tab_selector(3) . "').click();
+            } else {
+                alert('Error: ' + (response.data.message || 'Failed to select bundle'));
+                button.prop('disabled', false).text('Select Services →');
+            }
+        },
+        error: function(xhr, status, error) {
+            console.error('❌ AJAX Error:', status, error);
+            console.error('Response:', xhr.responseText);
+            
+            alert('Network error. Please try again.');
+            button.prop('disabled', false).text('Select Services →');
+        }
+    });
+});
             // Tile hover effects
             $(document).on('mouseenter', '.el-template-tile', function() {
                 if (!$(this).find('button').prop('disabled')) {

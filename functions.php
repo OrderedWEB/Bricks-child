@@ -1,4 +1,6 @@
 <?php
+error_reporting(E_ALL & ~E_DEPRECATED);
+ini_set('display_errors', 0);
 /**
  * Bricks Child Theme - Engagement Letter System Bootstrap
  * 
@@ -75,32 +77,47 @@ el_load_core_modules();
  * Guaranteed to run AFTER WooCommerce initialisation.
  */
 function el_load_woocommerce_modules() {
+
     // Verify WooCommerce is actually loaded
     if (!function_exists('WC') || !class_exists('WooCommerce')) {
+        error_log('❌ [FUNCTIONS.PHP] WooCommerce not available');
         if (defined('EL_DEBUG_MODE') && EL_DEBUG_MODE) {
             error_log('[EL System] WooCommerce not available - skipping WC modules');
         }
         return;
     }
     
+    error_log('✅ [FUNCTIONS.PHP] WooCommerce available, loading modules...');
+    
     $wc_files = [
-        'core/woocommerce.php',           // WC cart integration
-        'features/grouped-products.php',  // Grouped products system
+        'core/woocommerce.php',
+        'features/grouped-products.php',
     ];
     
     foreach ($wc_files as $file) {
         $filepath = EL_PATH . $file;
         
+
+        
         if (file_exists($filepath)) {
+            error_log('📥 [FUNCTIONS.PHP] Loading: ' . $file);
             require_once $filepath;
+            error_log('✅ [FUNCTIONS.PHP] Loaded: ' . $file);
         } else {
-            error_log('[EL System] WooCommerce module missing - ' . $file);
+            error_log('❌ [FUNCTIONS.PHP] WooCommerce module missing - ' . $file);
         }
     }
 }
 
+
+add_action('after_setup_theme', 'el_load_woocommerce_modules', 99);
+
+add_action('after_setup_theme', function() {
+    error_log('🧪 TEST: after_setup_theme hook FIRED!');
+}, 98);
+
 // Hook to woocommerce_loaded (guaranteed timing)
-add_action('woocommerce_loaded', 'el_load_woocommerce_modules', 5);
+
 
 // ============================================
 // PHASE 3: FEATURE MODULES (After Init)
@@ -500,3 +517,5 @@ add_action('wp_footer', function() {
         echo '<script>console.log("Is wizard page:", ' . (el_is_wizard_page() ? 'true' : 'false') . ');</script>';
     }
 }, 9999);
+
+

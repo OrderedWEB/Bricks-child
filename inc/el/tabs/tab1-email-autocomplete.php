@@ -122,7 +122,7 @@ function el_enqueue_email_autocomplete_script() {
         console.log('🔧 Email autocomplete initialized');
         
         // Attach to the email field in Gravity Forms (Field ID 2 = Email)
-        $(document).on('input keyup', '#input_1_2', function() {
+        $('#input_1_2').on('input', function() {
             var searchTerm = $(this).val().trim();
             console.log('📧 Email search:', searchTerm);
             
@@ -158,36 +158,55 @@ function el_enqueue_email_autocomplete_script() {
                                     .on('click', function() {
                                         var c = $(this).data('client');
                                         
+                                        // CRITICAL FIX: Trigger change/input events so Gravity Forms detects the values
+                                        
                                         // Name fields (Field ID 1 = Name)
-                                        $('#input_1_1_3').val(c.first_name || '');  // First name
-                                        $('#input_1_1_6').val(c.last_name || '');   // Last name
+                                        $('#input_1_1_3').val(c.first_name || '').trigger('change').trigger('input');  // First name
+                                        $('#input_1_1_6').val(c.last_name || '').trigger('change').trigger('input');   // Last name
                                         
                                         // Email (Field ID 2)
-                                        $('#input_1_2').val(c.email || '');
+                                        $('#input_1_2').val(c.email || '').trigger('change').trigger('input');
                                         
                                         // Phone (Field ID 5)
-                                        $('#input_1_5').val(c.phone || '');
+                                        $('#input_1_5').val(c.phone || '').trigger('change').trigger('input');
                                         
                                         // Complete address (Field ID 6)
                                         // Street address
-                                        $('#input_1_6_1').val(c.street_address || '');
+                                        $('#input_1_6_1').val(c.street_address || '').trigger('change').trigger('input');
                                         
                                         // Address line 2 (if exists)
                                         if (c.address_2) {
-                                            $('#input_1_6_2').val(c.address_2);
+                                            $('#input_1_6_2').val(c.address_2).trigger('change').trigger('input');
                                         }
                                         
                                         // City
-                                        $('#input_1_6_3').val(c.city || '');
+                                        $('#input_1_6_3').val(c.city || '').trigger('change').trigger('input');
                                         
                                         // State/Province
-                                        $('#input_1_6_4').val(c.state || '');
+                                        $('#input_1_6_4').val(c.state || '').trigger('change').trigger('input');
                                         
                                         // ZIP/Postal code
-                                        $('#input_1_6_5').val(c.zip || '');
+                                        $('#input_1_6_5').val(c.zip || '').trigger('change').trigger('input');
                                         
                                         // Country
-                                        $('#input_1_6_6').val(c.country || '');
+                                        $('#input_1_6_6').val(c.country || '').trigger('change').trigger('input');
+                                        
+                                        // CRITICAL: Force Gravity Forms to re-validate
+                                        setTimeout(function() {
+                                            // Trigger GF conditional logic
+                                            if (typeof gform !== 'undefined' && typeof gform.doAction === 'function') {
+                                                gform.doAction('gform_post_conditional_logic', 1, null, true);
+                                            }
+                                            
+                                            // Also manually trigger validation on required fields
+                                            $('#input_1_1_3, #input_1_1_6, #input_1_2').each(function() {
+                                                if (typeof $(this).valid === 'function') {
+                                                    $(this).valid();
+                                                }
+                                            });
+                                            
+                                            console.log('✅ Gravity Forms validation triggered');
+                                        }, 100);
                                         
                                         // Remove suggestions
                                         $('.el-client-suggestions').remove();

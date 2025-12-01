@@ -262,19 +262,32 @@
       // Show loading state
       $submitBtn.val("Saving...").prop("disabled", true);
 
-      // Collect form data
-      var formData = $form.serialize();
+      // FIXED: Collect individual field values instead of serializing
+      var formData = {
+        action: "el_save_client_ajax",
+        nonce: el_ajax.nonce,
+        first_name: $("#input_1_1_3").val(),
+        last_name: $("#input_1_1_6").val(),
+        email: $("#input_1_2").val(),
+        phone: $("#input_1_5").val(),
+        street_address: $("#input_1_6_1").val(),
+        address_2: $("#input_1_6_2").val(),
+        city: $("#input_1_6_3").val(),
+        state: $("#input_1_6_4").val(),
+        zip: $("#input_1_6_5").val(),
+        country: $("#input_1_6_6").val(),
+      };
+
+      console.log("📤 Sending client data:", formData);
 
       // Submit via AJAX
       $.ajax({
         url: el_ajax.ajax_url,
         type: "POST",
-        data: {
-          action: "el_save_client_ajax",
-          form_data: formData,
-          nonce: el_ajax.nonce,
-        },
+        data: formData,
         success: function (response) {
+          console.log("📥 Server response:", response);
+
           if (response.success) {
             // Update button state
             $submitBtn.val("Saved!").addClass("el-btn-success");
@@ -298,68 +311,9 @@
           }
         },
         error: function (xhr, status, error) {
+          console.error("❌ AJAX error:", error);
           self.showNotification("Connection error. Please try again.", "error");
           $submitBtn.val("Save Client Details").prop("disabled", false);
-        },
-      });
-    },
-
-    handleNoClientStart: function ($button) {
-      var self = this;
-
-      console.log("🔵 handleNoClientStart called");
-
-      if (
-        !confirm(
-          "Start without client details?\n\nYou can add client information later before finalizing."
-        )
-      ) {
-        console.log("❌ User cancelled");
-        return;
-      }
-
-      var originalHtml = $button.html();
-      $button.html("<span>Processing...</span>").prop("disabled", true);
-
-      console.log("🟡 Sending AJAX request...");
-
-      $.ajax({
-        url: el_ajax.ajax_url,
-        type: "POST",
-        data: {
-          action: "el_start_no_client",
-          nonce: el_ajax.nonce,
-        },
-        success: function (response) {
-          console.log("🟢 AJAX SUCCESS:", response);
-
-          if (response.success) {
-            self.clientData = {
-              client_id: 0,
-              client_name: "No Client",
-              no_client_mode: true,
-            };
-
-            console.log("✅ Client data stored:", self.clientData);
-            self.showNotification("✓ No client mode activated", "success");
-
-            // Switch to Tab 2
-            setTimeout(function () {
-              self.switchToTab(2);
-            }, 500);
-          } else {
-            console.log("❌ AJAX failed:", response.data.message);
-            self.showNotification(
-              "Error: " + (response.data.message || "Could not start"),
-              "error"
-            );
-            $button.html(originalHtml).prop("disabled", false);
-          }
-        },
-        error: function (xhr, status, error) {
-          console.log("🔴 AJAX ERROR:", error);
-          self.showNotification("Connection error. Please try again.", "error");
-          $button.html(originalHtml).prop("disabled", false);
         },
       });
     },
