@@ -29,14 +29,15 @@ if (!defined('ABSPATH')) exit;
  * @return array Product IDs
  */
 function el_get_templates($args = []) {
-    $defaults = [
-        'category' => 'el-templates',
-        'practice_area' => '',
-        'tag' => '',
-        'limit' => -1,
-        'orderby' => 'menu_order',
-        'order' => 'ASC',
-    ];
+$defaults = [
+    'category' => 'el-templates',
+    'practice_area' => '',
+    'tag' => '',
+    'search' => '',
+    'limit' => -1,
+    'orderby' => 'menu_order',
+    'order' => 'ASC',
+];
     
     $args = wp_parse_args($args, $defaults);
     
@@ -54,16 +55,16 @@ function el_get_templates($args = []) {
         ],
     ];
     
-    // Filter by practice area (ACF field)
-    if (!empty($args['practice_area'])) {
-        $query_args['meta_query'] = [
-            [
-                'key' => EL_ACF_PRACTICE_AREA,
-                'value' => $args['practice_area'],
-                'compare' => '=',
-            ],
-        ];
-    }
+// Filter by practice area (ACF field - handles semicolon-separated values)
+if (!empty($args['practice_area'])) {
+    $query_args['meta_query'] = [
+        [
+            'key' => EL_ACF_PRACTICE_AREA,
+            'value' => $args['practice_area'],
+            'compare' => 'LIKE',
+        ],
+    ];
+}
     
     // Filter by tag
     if (!empty($args['tag'])) {
@@ -73,14 +74,17 @@ function el_get_templates($args = []) {
             'terms' => $args['tag'],
         ];
     }
-    
+    // Search by name
+if (!empty($args['search'])) {
+    $query_args['s'] = $args['search'];
+}
     $query = new WP_Query($query_args);
     
     return wp_list_pluck($query->posts, 'ID');
 }
 
 /**
- * Renders template grid
+ * Renders template grid with view toggle
  * 
  * @param array $args Display arguments
  * @return string HTML grid
@@ -90,6 +94,7 @@ function el_render_template_grid($args = []) {
         'practice_area' => '',
         'tag' => '',
         'columns' => 3,
+        'view_mode' => 'tile',
     ];
     
     $args = wp_parse_args($args, $defaults);
@@ -100,24 +105,70 @@ function el_render_template_grid($args = []) {
         return '<p class="el-no-templates">No templates found matching your criteria.</p>';
     }
     
-    $output = '<div class="el-template-grid" style="display: grid; grid-template-columns: repeat(' . $args['columns'] . ', 1fr); gap: 20px; margin: 20px 0;">';
-    
-    foreach ($template_ids as $product_id) {
-        $output .= el_render_template_card($product_id);
-    }
-    
+    // View toggle buttons
+    $output = '<div class="el-view-toggle" style="display: flex; justify-content: flex-end; margin-bottom: 16px; gap: 8px;">';
+    $output .= '<button type="button" class="el-view-btn" data-view="tile" style="
+        padding: 8px 12px;
+        border: 2px solid ' . ($args['view_mode'] === 'tile' ? EL_COLOR_PRIMARY : '#e5e7eb') . ';
+        background: ' . ($args['view_mode'] === 'tile' ? EL_COLOR_PRIMARY : 'white') . ';
+        color: ' . ($args['view_mode'] === 'tile' ? 'white' : '#6b7280') . ';
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    ">
+        <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+            <path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h3A1.5 1.5 0 0 1 7 2.5v3A1.5 1.5 0 0 1 5.5 7h-3A1.5 1.5 0 0 1 1 5.5v-3zm8 0A1.5 1.5 0 0 1 10.5 1h3A1.5 1.5 0 0 1 15 2.5v3A1.5 1.5 0 0 1 13.5 7h-3A1.5 1.5 0 0 1 9 5.5v-3zm-8 8A1.5 1.5 0 0 1 2.5 9h3A1.5 1.5 0 0 1 7 10.5v3A1.5 1.5 0 0 1 5.5 15h-3A1.5 1.5 0 0 1 1 13.5v-3zm8 0A1.5 1.5 0 0 1 10.5 9h3a1.5 1.5 0 0 1 1.5 1.5v3a1.5 1.5 0 0 1-1.5 1.5h-3A1.5 1.5 0 0 1 9 13.5v-3z"/>
+        </svg>
+        Tiles
+    </button>';
+    $output .= '<button type="button" class="el-view-btn" data-view="list" style="
+        padding: 8px 12px;
+        border: 2px solid ' . ($args['view_mode'] === 'list' ? EL_COLOR_PRIMARY : '#e5e7eb') . ';
+        background: ' . ($args['view_mode'] === 'list' ? EL_COLOR_PRIMARY : 'white') . ';
+        color: ' . ($args['view_mode'] === 'list' ? 'white' : '#6b7280') . ';
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    ">
+        <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+            <path fill-rule="evenodd" d="M2.5 12a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5z"/>
+        </svg>
+        List
+    </button>';
     $output .= '</div>';
+    
+    // Grid or list container
+    if ($args['view_mode'] === 'list') {
+        $output .= '<div class="el-template-list" id="elTemplateList">';
+        foreach ($template_ids as $product_id) {
+            $output .= el_render_template_card($product_id, 'list');
+        }
+        $output .= '</div>';
+    } else {
+        $output .= '<div class="el-template-grid" id="elTemplateGrid" style="display: grid; grid-template-columns: repeat(' . $args['columns'] . ', 1fr); gap: 20px;">';
+        foreach ($template_ids as $product_id) {
+            $output .= el_render_template_card($product_id, 'tile');
+        }
+        $output .= '</div>';
+    }
     
     return $output;
 }
 
 /**
- * Renders individual template card (tile design)
+ * Renders individual template card (supports both tile and list view)
  * 
  * @param int $product_id Product ID
+ * @param string $view_mode 'tile' or 'list'
  * @return string HTML card
  */
-function el_render_template_card($product_id) {
+function el_render_template_card($product_id, $view_mode = 'tile') {
     $product = wc_get_product($product_id);
     
     if (!$product) {
@@ -132,6 +183,129 @@ function el_render_template_card($product_id) {
     // Get product tags
     $tags = get_the_terms($product_id, 'product_tag');
     
+    // Parse multiple practice areas (semicolon or comma separated)
+    $practice_areas = [];
+    if ($practice_area) {
+        $practice_areas = preg_split('/[;,]\s*/', $practice_area);
+        $practice_areas = array_map('trim', $practice_areas);
+        $practice_areas = array_filter($practice_areas);
+    }
+    
+    // ============================================
+    // LIST VIEW
+    // ============================================
+    if ($view_mode === 'list') {
+        $output = '<div class="el-template-list-item" data-product-id="' . $product_id . '" style="
+            background: white;
+            border: 2px solid ' . ($in_cart ? EL_COLOR_PRIMARY : '#e5e7eb') . ';
+            border-radius: 8px;
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            transition: all 0.3s;
+            margin-bottom: 12px;
+        ">';
+        
+        // Left: Title and badges
+        $output .= '<div style="flex: 1; min-width: 0;">';
+        $output .= '<h3 style="margin: 0 0 8px 0; font-size: 16px; font-weight: 600;">' . esc_html($product->get_name()) . '</h3>';
+        
+        // Practice area badges (inline)
+        if (!empty($practice_areas)) {
+            $output .= '<div style="display: flex; flex-wrap: wrap; gap: 4px;">';
+            foreach ($practice_areas as $area) {
+                $output .= '<span style="
+                    background: ' . EL_COLOR_BG_LIGHT . ';
+                    color: ' . EL_COLOR_NAVY . ';
+                    padding: 2px 8px;
+                    border-radius: 4px;
+                    font-size: 10px;
+                    font-weight: 600;
+                    white-space: nowrap;
+                ">' . esc_html($area) . '</span>';
+            }
+            $output .= '</div>';
+        }
+        $output .= '</div>';
+        
+        // Middle: Tags
+        if ($tags && !is_wp_error($tags)) {
+            $output .= '<div style="display: flex; flex-wrap: wrap; gap: 4px; max-width: 200px;">';
+            foreach (array_slice($tags, 0, 3) as $tag) {
+                $output .= '<span style="
+                    background: rgba(37, 99, 235, 0.1);
+                    color: ' . EL_COLOR_PRIMARY . ';
+                    padding: 2px 8px;
+                    border-radius: 4px;
+                    font-size: 10px;
+                    font-weight: 600;
+                ">' . esc_html($tag->name) . '</span>';
+            }
+            if (count($tags) > 3) {
+                $output .= '<span style="font-size: 10px; color: #6b7280;">+' . (count($tags) - 3) . '</span>';
+            }
+            $output .= '</div>';
+        }
+        
+        // Right: Bundle indicator and button
+        $output .= '<div style="display: flex; align-items: center; gap: 12px; flex-shrink: 0;">';
+        
+        if ($is_grouped) {
+            $children = $product->get_children();
+            $output .= '<span style="font-size: 12px; color: ' . EL_COLOR_PRIMARY . '; font-weight: 600;">📦 ' . count($children) . ' services</span>';
+        }
+        
+        // Button
+        if ($in_cart) {
+            $output .= '<button type="button" class="el-remove-template" data-product-id="' . $product_id . '" style="
+                background: #dc2626;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 6px;
+                font-weight: 600;
+                cursor: pointer;
+                font-size: 13px;
+                white-space: nowrap;
+            ">✓ Remove</button>';
+        } else {
+            if ($is_grouped) {
+                $output .= '<button type="button" class="el-select-grouped" data-product-id="' . $product_id . '" style="
+                    background: ' . EL_COLOR_PRIMARY . ';
+                    color: white;
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 6px;
+                    font-weight: 600;
+                    cursor: pointer;
+                    font-size: 13px;
+                    white-space: nowrap;
+                ">Select →</button>';
+            } else {
+                $output .= '<button type="button" class="el-add-template" data-product-id="' . $product_id . '" style="
+                    background: ' . EL_COLOR_PRIMARY . ';
+                    color: white;
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 6px;
+                    font-weight: 600;
+                    cursor: pointer;
+                    font-size: 13px;
+                    white-space: nowrap;
+                ">Select</button>';
+            }
+        }
+        
+        $output .= '</div>';
+        $output .= '</div>';
+        
+        return $output;
+    }
+    
+    // ============================================
+    // TILE VIEW (default)
+    // ============================================
     $output = '<div class="el-template-tile" data-product-id="' . $product_id . '" style="
         background: white;
         border: 2px solid ' . ($in_cart ? EL_COLOR_PRIMARY : '#e5e7eb') . ';
@@ -140,32 +314,35 @@ function el_render_template_card($product_id) {
         transition: all 0.3s;
         cursor: pointer;
         position: relative;
+        display: flex;
+        flex-direction: column;
     ">';
     
-    // Practice area badge (top right)
-    if ($practice_area) {
-        $output .= '<div style="
-            position: absolute;
-            top: 16px;
-            right: 16px;
-            background: ' . EL_COLOR_BG_LIGHT . ';
-            color: ' . EL_COLOR_NAVY . ';
-            padding: 6px 14px;
-            border-radius: 12px;
-            font-size: 11px;
-            font-weight: 600;
-        ">' . esc_html($practice_area) . '</div>';
+    // Practice area badges (top, wrapped)
+    if (!empty($practice_areas)) {
+        $output .= '<div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px;">';
+        foreach ($practice_areas as $area) {
+            $output .= '<span style="
+                background: ' . EL_COLOR_BG_LIGHT . ';
+                color: ' . EL_COLOR_NAVY . ';
+                padding: 4px 10px;
+                border-radius: 6px;
+                font-size: 11px;
+                font-weight: 600;
+            ">' . esc_html($area) . '</span>';
+        }
+        $output .= '</div>';
     }
     
     // Title
-    $output .= '<h3 style="margin: 0 0 12px 0; font-size: 18px; font-weight: 700; padding-right: 100px;">' . esc_html($product->get_name()) . '</h3>';
+    $output .= '<h3 style="margin: 0 0 12px 0; font-size: 18px; font-weight: 700;">' . esc_html($product->get_name()) . '</h3>';
     
     // Tags (if any)
     if ($tags && !is_wp_error($tags)) {
         $output .= '<div class="el-template-tags" style="margin-bottom: 12px; display: flex; flex-wrap: wrap; gap: 6px;">';
         foreach ($tags as $tag) {
             $output .= '<span style="
-                background: rgba(' . hexdec(substr(EL_COLOR_PRIMARY, 1, 2)) . ', ' . hexdec(substr(EL_COLOR_PRIMARY, 3, 2)) . ', ' . hexdec(substr(EL_COLOR_PRIMARY, 5, 2)) . ', 0.1);
+                background: rgba(37, 99, 235, 0.1);
                 color: ' . EL_COLOR_PRIMARY . ';
                 padding: 4px 10px;
                 border-radius: 10px;
@@ -178,7 +355,9 @@ function el_render_template_card($product_id) {
     
     // Short description (first line)
     if ($product->get_short_description()) {
-        $output .= '<p style="font-size: 14px; color: #6b7280; margin-bottom: 15px; line-height: 1.5;">' . wp_trim_words($product->get_short_description(), 15) . '</p>';
+        $output .= '<p style="font-size: 14px; color: #6b7280; margin-bottom: 15px; line-height: 1.5; flex-grow: 1;">' . wp_trim_words($product->get_short_description(), 15) . '</p>';
+    } else {
+        $output .= '<div style="flex-grow: 1;"></div>';
     }
     
     // Toggle for PDF description
@@ -214,8 +393,6 @@ function el_render_template_card($product_id) {
         $output .= '<p style="font-size: 13px; color: ' . EL_COLOR_PRIMARY . '; margin-bottom: 12px; font-weight: 600;">📦 Bundle: ' . count($children) . ' services</p>';
     }
     
-    // Price removed per requirements
-    
     // Button
     if ($in_cart) {
         $output .= '<button type="button" class="el-remove-template" data-product-id="' . $product_id . '" style="
@@ -228,6 +405,7 @@ function el_render_template_card($product_id) {
             font-weight: 600;
             cursor: pointer;
             font-size: 15px;
+            margin-top: auto;
         ">✓ Selected - Remove</button>';
     } else {
         if ($is_grouped) {
@@ -241,6 +419,7 @@ function el_render_template_card($product_id) {
                 font-weight: 600;
                 cursor: pointer;
                 font-size: 15px;
+                margin-top: auto;
             ">Select Services →</button>';
         } else {
             $output .= '<button type="button" class="el-add-template" data-product-id="' . $product_id . '" style="
@@ -253,6 +432,7 @@ function el_render_template_card($product_id) {
                 font-weight: 600;
                 cursor: pointer;
                 font-size: 15px;
+                margin-top: auto;
             ">Select Template</button>';
         }
     }
@@ -276,9 +456,18 @@ function el_get_practice_areas() {
     $areas = [];
     
     foreach ($template_ids as $product_id) {
-        $area = get_field(EL_ACF_PRACTICE_AREA, $product_id);
-        if ($area && !in_array($area, $areas)) {
-            $areas[] = $area;
+        $area_raw = get_field(EL_ACF_PRACTICE_AREA, $product_id);
+        
+        if ($area_raw) {
+            // Split by semicolon or comma
+            $parsed_areas = preg_split('/[;,]\s*/', $area_raw);
+            
+            foreach ($parsed_areas as $area) {
+                $area = trim($area);
+                if ($area && !in_array($area, $areas)) {
+                    $areas[] = $area;
+                }
+            }
         }
     }
     
@@ -286,7 +475,27 @@ function el_get_practice_areas() {
     
     return $areas;
 }
-
+/**
+ * Renders search box
+ * 
+ * @return string HTML search
+ */
+function el_render_search_box() {
+    $output = '<div class="el-filter-search" style="margin-bottom: 20px;">';
+    $output .= '<label style="display: block; font-weight: 600; margin-bottom: 8px;">Search Templates:</label>';
+    $output .= '<input type="text" id="elTemplateSearch" placeholder="Type to search by name..." style="
+        padding: 10px 14px;
+        border: 2px solid #e5e7eb;
+        border-radius: 6px;
+        width: 100%;
+        max-width: 400px;
+        font-size: 14px;
+        transition: border-color 0.2s ease;
+    ">';
+    $output .= '</div>';
+    
+    return $output;
+}
 /**
  * Renders practice area filter
  * 
@@ -369,6 +578,9 @@ function el_render_tag_filter() {
 /**
  * AJAX handler: Add template to cart
  */
+/**
+ * AJAX handler: Add template to cart (clears existing EL items first)
+ */
 function el_ajax_add_template_to_cart() {
     check_ajax_referer(EL_NONCE, 'nonce');
     
@@ -382,10 +594,8 @@ function el_ajax_add_template_to_cart() {
         wp_send_json_error(['message' => 'Cart not available']);
     }
     
-    // Check if already in cart
-    if (el_is_product_in_cart($product_id)) {
-        wp_send_json_error(['message' => 'Template already in cart']);
-    }
+    // Clear existing cart before adding new template
+    WC()->cart->empty_cart();
     
     // Add to cart
     $cart_item_key = WC()->cart->add_to_cart($product_id, 1);
@@ -415,6 +625,7 @@ function el_ajax_add_template_to_cart() {
         'message' => 'Template added to cart',
         'product_name' => $product->get_name(),
         'cart_count' => el_get_cart_count(),
+        'cart_cleared' => true,
     ]);
 }
 add_action('wp_ajax_' . EL_AJAX_ADD_TEMPLATE, 'el_ajax_add_template_to_cart');
@@ -455,15 +666,22 @@ add_action('wp_ajax_el_remove_template_from_cart', 'el_ajax_remove_template_from
 /**
  * AJAX handler: Load filtered templates
  */
+/**
+ * AJAX handler: Load filtered templates
+ */
 function el_ajax_load_templates() {
     check_ajax_referer(EL_NONCE, 'nonce');
     
     $practice_area = sanitize_text_field($_POST['practice_area'] ?? '');
     $tag = sanitize_text_field($_POST['tag'] ?? '');
+    $view_mode = sanitize_text_field($_POST['view_mode'] ?? 'tile');
+    $search = sanitize_text_field($_POST['search'] ?? '');
     
     $html = el_render_template_grid([
         'practice_area' => $practice_area,
         'tag' => $tag,
+        'view_mode' => $view_mode,
+        'search' => $search,
     ]);
     
     wp_send_json_success(['html' => $html]);
@@ -491,12 +709,13 @@ function el_template_selection_shortcode($atts) {
     
     $output = '<div class="el-template-selection-wrapper">';
     
-    // Filters
-    $output .= '<div class="el-template-filters" style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px;">';
-    $output .= el_render_practice_area_filter();
-    $output .= el_render_tag_filter();
-    $output .= '</div>';
-    
+// Filters
+$output .= '<div class="el-template-filters" style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px;">';
+$output .= el_render_search_box();
+$output .= el_render_practice_area_filter();
+$output .= el_render_tag_filter();
+$output .= '</div>';
+
     // Grid container
     $output .= '<div id="elTemplateGridContainer">';
     $output .= el_render_template_grid($atts);
@@ -523,10 +742,72 @@ function el_enqueue_tab2_script() {
     
     wp_add_inline_script('jquery', "
         jQuery(document).ready(function($) {
-            var currentFilters = {
-                practice_area: '',
-                tag: ''
-            };
+   var currentFilters = {
+    practice_area: '',
+    tag: '',
+    search: ''
+};
+// View toggle
+var currentViewMode = 'tile';
+
+$(document).on('click', '.el-view-btn', function() {
+    var newView = $(this).data('view');
+    if (newView === currentViewMode) return;
+    
+    currentViewMode = newView;
+    
+    // Update button styles
+    $('.el-view-btn').each(function() {
+        var isActive = $(this).data('view') === newView;
+        $(this).css({
+            'border-color': isActive ? '" . EL_COLOR_PRIMARY . "' : '#e5e7eb',
+            'background': isActive ? '" . EL_COLOR_PRIMARY . "' : 'white',
+            'color': isActive ? 'white' : '#6b7280'
+        });
+    });
+    
+    // Reload templates with new view
+    loadFilteredTemplates();
+});
+
+// Update loadFilteredTemplates to include view_mode
+function loadFilteredTemplates() {
+    $('#elTemplateGridContainer').html('<div style=\"text-align: center; padding: 40px;\"><p>Loading templates...</p></div>');
+    
+    $.ajax({
+        url: elAjax.ajaxUrl,
+        type: 'POST',
+data: {
+    action: 'el_load_templates',
+    nonce: elAjax.nonce,
+    practice_area: currentFilters.practice_area,
+    tag: currentFilters.tag,
+    view_mode: currentViewMode,
+    search: currentFilters.search
+},
+        success: function(response) {
+            if (response.success) {
+                $('#elTemplateGridContainer').html(response.data.html);
+            } else {
+                $('#elTemplateGridContainer').html('<div style=\"text-align: center; padding: 40px;\"><p>Error loading templates.</p></div>');
+            }
+        },
+        error: function() {
+            $('#elTemplateGridContainer').html('<div style=\"text-align: center; padding: 40px;\"><p>Error loading templates.</p></div>');
+        }
+    });
+}
+        // Search filter with debounce
+var searchTimeout;
+$(document).on('input', '#elTemplateSearch', function() {
+    var searchTerm = $(this).val().trim();
+    
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(function() {
+        currentFilters.search = searchTerm;
+        loadFilteredTemplates();
+    }, 300);
+});
             
             // Practice area filter
             $(document).on('change', '#elPracticeAreaFilter', function() {
@@ -560,31 +841,7 @@ function el_enqueue_tab2_script() {
                 loadFilteredTemplates();
             });
             
-            // Load filtered templates
-            function loadFilteredTemplates() {
-                $('#elTemplateGridContainer').html('<div style=\"text-align: center; padding: 40px;\"><p>Loading templates...</p></div>');
-                
-                $.ajax({
-                    url: elAjax.ajaxUrl,
-                    type: 'POST',
-                    data: {
-                        action: 'el_load_templates',
-                        nonce: elAjax.nonce,
-                        practice_area: currentFilters.practice_area,
-                        tag: currentFilters.tag
-                    },
-                    success: function(response) {
-                        if (response.success) {
-                            $('#elTemplateGridContainer').html(response.data.html);
-                        } else {
-                            $('#elTemplateGridContainer').html('<div style=\"text-align: center; padding: 40px;\"><p>Error loading templates.</p></div>');
-                        }
-                    },
-                    error: function() {
-                        $('#elTemplateGridContainer').html('<div style=\"text-align: center; padding: 40px;\"><p>Error loading templates.</p></div>');
-                    }
-                });
-            }
+
             
             // Toggle description
             $(document).on('click', '.el-toggle-description', function(e) {
@@ -618,21 +875,32 @@ function el_enqueue_tab2_script() {
                         nonce: elAjax.nonce,
                         product_id: productId
                     },
-                    success: function(response) {
-                        if (response.success) {
-                            tile.css('border-color', '" . EL_COLOR_PRIMARY . "');
-                            button.text('✓ Selected - Remove')
-                                .removeClass('el-add-template')
-                                .addClass('el-remove-template')
-                                .css('background', '#dc2626');
-                            
-                            // Show success message briefly
-                            var successMsg = $('<div style=\"position: fixed; top: 20px; right: 20px; background: #10b981; color: white; padding: 12px 20px; border-radius: 8px; z-index: 9999; box-shadow: 0 4px 6px rgba(0,0,0,0.1);\">✓ Template added</div>');
-                            $('body').append(successMsg);
-                            setTimeout(function() {
-                                successMsg.fadeOut(function() { $(this).remove(); });
-                            }, 2000);
-                        } else {
+success: function(response) {
+    if (response.success) {
+        // Reset ALL template tiles first (cart was cleared)
+        $('.el-template-tile, .el-template-list-item').css('border-color', '#e5e7eb');
+        $('.el-remove-template').text('Select Template')
+            .removeClass('el-remove-template')
+            .addClass('el-add-template')
+            .css('background', '" . EL_COLOR_PRIMARY . "')
+            .prop('disabled', false);
+        
+        // Now highlight only the newly selected one
+        tile.css('border-color', '" . EL_COLOR_PRIMARY . "');
+        button.text('✓ Selected - Remove')
+            .removeClass('el-add-template')
+            .addClass('el-remove-template')
+            .css('background', '#dc2626')
+            .prop('disabled', false);
+        
+        // Show success message briefly
+        var successMsg = $('<div style=\"position: fixed; top: 20px; right: 20px; background: #10b981; color: white; padding: 12px 20px; border-radius: 8px; z-index: 9999; box-shadow: 0 4px 6px rgba(0,0,0,0.1);\">✓ Template added</div>');
+        $('body').append(successMsg);
+        setTimeout(function() {
+            successMsg.fadeOut(function() { $(this).remove(); });
+        }, 2000);
+    } else {
+
                             alert('Error: ' + (response.data.message || 'Failed to add template'));
                             button.prop('disabled', false).text('Select Template');
                         }
@@ -754,6 +1022,7 @@ $(document).on('click', '.el-select-grouped', function(e) {
             });
         });
     ");
+    
 }
 add_action('wp_enqueue_scripts', 'el_enqueue_tab2_script');
 
@@ -804,6 +1073,7 @@ function el_enqueue_tab2_css() {
     ");
 }
 add_action('wp_enqueue_scripts', 'el_enqueue_tab2_css');
+
 
 // Log module loaded
 if (EL_DEBUG_MODE) {

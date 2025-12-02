@@ -1,0 +1,226 @@
+/**
+ * SLM Messaging - Admin Styles
+ */
+
+/* Message list columns */
+.post-type-slm_message .wp-list-table .column-sender {
+    width: 15%;
+}
+
+.post-type-slm_message .wp-list-table .column-case {
+    width: 15%;
+}
+
+.post-type-slm_message .wp-list-table .column-context {
+    width: 15%;
+}
+
+.post-type-slm_message .wp-list-table .column-preview {
+    width: 35%;
+}
+
+.post-type-slm_message .wp-list-table .column-sent {
+    width: 15%;
+}
+
+/* Badge */
+.slm-badge {
+    display: inline-block;
+    padding: 2px 6px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    background: #1a365d;
+    color: #fff;
+    border-radius: 3px;
+    margin-left: 4px;
+    vertical-align: middle;
+}
+
+/* Has attachment indicator */
+.slm-has-attachment {
+    font-size: 14px;
+    margin-left: 4px;
+}
+
+/* NA placeholder */
+.post-type-slm_message .na {
+    color: #999;
+}
+
+/* Read-only notice */
+.slm-readonly-notice {
+    background: #fff3cd;
+    border-left: 4px solid #ffc107;
+    padding: 12px 16px;
+    margin-bottom: 20px;
+}
+
+.slm-readonly-notice p {
+    margin: 0;
+    color: #856404;
+}
+
+/* Message view in admin */
+.slm-admin-message-view {
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.slm-admin-message-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #eee;
+}
+
+.slm-admin-message-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+}
+
+.slm-admin-message-sender {
+    font-weight: 600;
+    font-size: 16px;
+}
+
+.slm-admin-message-time {
+    color: #666;
+    font-size: 13px;
+}
+
+.slm-admin-message-content {
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.slm-admin-message-attachments {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid #eee;
+}
+
+.slm-admin-message-attachments h4 {
+    margin: 0 0 8px;
+    font-size: 13px;
+    color: #666;
+}
+
+.slm-admin-attachment {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    background: #f8f9fa;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    margin-right: 8px;
+    margin-bottom: 8px;
+    text-decoration: none;
+    color: #333;
+}
+
+.slm-admin-attachment:hover {
+    background: #e9ecef;
+    border-color: #4a90e2;
+    color: #4a90e2;
+}
+
+/* Read status list */
+.slm-read-status-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.slm-read-status-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    border-bottom: 1px solid #f0f0f0;
+    font-size: 13px;
+}
+
+.slm-read-status-item:last-child {
+    border-bottom: none;
+}
+
+.slm-read-status-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+}
+
+.slm-read-status-name {
+    flex: 1;
+}
+
+.slm-read-status-time {
+    color: #888;
+    font-size: 12px;
+}
+
+/* Email sent list */
+.slm-email-sent-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.slm-email-sent-item {
+    padding: 6px 0;
+    border-bottom: 1px solid #f0f0f0;
+    font-size: 13px;
+}
+
+.slm-email-sent-item:last-child {
+    border-bottom: none;
+}
+
+.slm-email-type {
+    display: inline-block;
+    padding: 1px 4px;
+    font-size: 10px;
+    background: #e9ecef;
+    border-radius: 2px;
+    margin-left: 4px;
+}
+
+/* Context display */
+.slm-context-display {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    background: #f8f9fa;
+    border-radius: 4px;
+    font-size: 13px;
+}
+
+.slm-context-display a {
+    text-decoration: none;
+}
+
+.slm-context-display a:hover {
+    text-decoration: underline;
+}
+
+/* Immutability indicator */
+.post-type-slm_message #post-body-content::before {
+    content: '🔒 This message is immutable and cannot be edited or deleted.';
+    display: block;
+    background: #f0f7ff;
+    border: 1px solid #4a90e2;
+    border-radius: 4px;
+    padding: 12px 16px;
+    margin-bottom: 20px;
+    color: #1a365d;
+    font-size: 13px;
+}

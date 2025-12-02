@@ -201,6 +201,8 @@ function el_get_session_merge_data() {
     
     // Add form data fields
     if (!empty($form_data)) {
+        $formatted_address = el_format_full_address($form_data);
+        
         $data = array_merge($data, [
             'first_name' => $form_data['first_name'] ?? '',
             'last_name' => $form_data['last_name'] ?? '',
@@ -212,7 +214,9 @@ function el_get_session_merge_data() {
             'state' => $form_data['state'] ?? '',
             'zip' => $form_data['zip'] ?? '',
             'country' => $form_data['country'] ?? '',
-            'full_address' => el_format_full_address($form_data),
+            'full_address' => $formatted_address,
+            'address' => $formatted_address,  // FIX: Also map {{address}} to string
+            'client_address' => $formatted_address,  // FIX: Also map {{client_address}}
         ]);
     }
     

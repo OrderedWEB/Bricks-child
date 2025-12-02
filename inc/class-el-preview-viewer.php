@@ -821,72 +821,90 @@ class EL_Preview_Viewer {
     /**
      * AJAX: Generate preview
      */
-    public static function ajax_generate_preview() {
-        check_ajax_referer('el_preview_viewer', 'nonce');
+public static function ajax_generate_preview() {
+    try {
+        // Check nonce
+        if (!wp_verify_nonce($_POST['nonce'] ?? '', 'el_preview_viewer')) {
+            wp_send_json_error(['message' => 'DEBUG: Nonce check failed']);
+        }
         
         if (!current_user_can('edit_posts')) {
-            wp_send_json_error(['message' => 'Permission denied']);
+            wp_send_json_error(['message' => 'DEBUG: Permission denied']);
         }
         
         $mode = sanitize_text_field($_POST['mode'] ?? self::MODE_PAGINATED);
         $include_user_data = isset($_POST['include_user_data']) ? $_POST['include_user_data'] === 'true' : true;
         $paper_only = isset($_POST['paper_only']) ? $_POST['paper_only'] === 'true' : false;
         
+        // Check if class exists
+        if (!class_exists('EL_Print_Data_Assembler')) {
+            wp_send_json_error(['message' => 'DEBUG: EL_Print_Data_Assembler class not found']);
+        }
+        
         // Assemble data
-        $data = EL_Print_Data_Assembler::assemble_data($include_user_data);
+        $data = EL_Print_Data_Assembler::assemble_data();
         
         if (is_wp_error($data)) {
-            wp_send_json_error(['message' => $data->get_error_message()]);
+            wp_send_json_error(['message' => 'DEBUG: assemble_data error - ' . $data->get_error_message()]);
+        }
+        
+        if (empty($data)) {
+            wp_send_json_error(['message' => 'DEBUG: assemble_data returned empty']);
+        }
+        
+        // Check mPDF class
+        if (!class_exists('EL_MPDF_Generator')) {
+            wp_send_json_error(['message' => 'DEBUG: EL_MPDF_Generator class not found']);
+        }
+        
+        // Check mPDF availability
+        if (!EL_MPDF_Generator::is_mpdf_available()) {
+            wp_send_json_error(['message' => 'DEBUG: mPDF not available - is Gravity PDF installed?']);
         }
         
         // Generate PDF
-        if (!EL_MPDF_Generator::is_mpdf_available()) {
-            wp_send_json_error(['message' => 'PDF generator not available']);
-        }
-        
-        // Resource safeguard: Clean up any old preview PDF before generating new one
-        if (!session_id()) {
-            session_start();
-        }
-        if (!empty($_SESSION['el_preview_pdf_path']) && file_exists($_SESSION['el_preview_pdf_path'])) {
-            @unlink($_SESSION['el_preview_pdf_path']);
-            unset($_SESSION['el_preview_pdf_path']);
-        }
-        
         $generator = new EL_MPDF_Generator();
-        $result = $generator->generate_from_data($data, $paper_only);
+     $result = $generator->generate_from_data($data, $paper_only, '', $include_user_data);
         
         if (!$result['success']) {
-            wp_send_json_error(['message' => $result['error']]);
+            wp_send_json_error(['message' => 'DEBUG: PDF generation failed - ' . $result['error']]);
         }
         
-        // Resource safeguard: Limit continuous mode to reasonable page count
-        if ($mode === self::MODE_CONTINUOUS && $result['total_pages'] > 15) {
-            // Clean up the just-generated PDF since we're not using it
-            if (file_exists($result['pdf_path'])) {
-                @unlink($result['pdf_path']);
-            }
-            
-            wp_send_json_error([
-                'message' => sprintf(
-                    'Document has %d pages. Continuous mode is limited to 15 pages for performance. Please use paginated mode instead.',
-                    $result['total_pages']
-                )
-            ]);
-        }
-        
-        // Store PDF path in session for rendering
-        $_SESSION['el_preview_pdf_path'] = $result['pdf_path'];
-        $_SESSION['el_preview_reference'] = $data['meta']['reference'];
-        $_SESSION['el_preview_mode'] = $mode;
-        $_SESSION['el_preview_total_pages'] = $result['total_pages'];
+  // Store in session - force update
+if (!session_id() && !headers_sent()) {
+    session_start();
+}
+
+// Clear old values first
+unset($_SESSION['el_preview_pdf_path']);
+unset($_SESSION['el_preview_reference']);
+unset($_SESSION['el_preview_mode']);
+unset($_SESSION['el_preview_total_pages']);
+
+// Set new values
+$_SESSION['el_preview_pdf_path'] = $result['pdf_path'];
+$_SESSION['el_preview_reference'] = $data['reference'];
+$_SESSION['el_preview_mode'] = $mode;
+$_SESSION['el_preview_total_pages'] = $result['total_pages'];
+
+// Force session write
+session_write_close();
+session_start();
+
+error_log('EL Preview: Stored total_pages = ' . $result['total_pages']);
         
         wp_send_json_success([
-            'reference' => $data['meta']['reference'],
+            'reference' => $data['reference'],
             'total_pages' => $result['total_pages'],
             'mode' => $mode,
         ]);
+        
+    } catch (Exception $e) {
+        wp_send_json_error(['message' => 'DEBUG: Exception - ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine()]);
+    } catch (Error $e) {
+        wp_send_json_error(['message' => 'DEBUG: Fatal Error - ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine()]);
     }
+}
     
     /**
      * AJAX: Render single page as image

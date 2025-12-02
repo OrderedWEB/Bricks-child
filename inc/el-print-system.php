@@ -1,4 +1,7 @@
 <?php
+add_action('wp_footer', function() {
+    echo '<script>console.log("🔧 EL Print System: File loaded");</script>';
+});
 /**
  * Engagement Letter Print PDF System - Main Loader
  * 
@@ -84,13 +87,18 @@ class EL_Print_System {
         ];
         
         foreach ($components as $file) {
-            $path = $inc_dir . $file;
-            if (file_exists($path)) {
-                require_once $path;
-            } else {
-                error_log('EL Print System: Missing component - ' . $file);
-            }
-        }
+    $path = $inc_dir . $file;
+    if (file_exists($path)) {
+        require_once $path;
+        add_action('wp_footer', function() use ($file) {
+            echo '<script>console.log("✅ Loaded: ' . $file . '");</script>';
+        });
+    } else {
+        add_action('wp_footer', function() use ($file) {
+            echo '<script>console.error("❌ Missing: ' . $file . '");</script>';
+        });
+    }
+}
         
         $this->components_loaded = true;
     }
@@ -123,10 +131,11 @@ class EL_Print_System {
     /**
      * Enqueue frontend scripts
      */
-    public function enqueue_scripts() {
-        if (!$this->is_el_page()) {
-            return;
-        }
+public function enqueue_scripts() {
+    // Temporary debug - always enqueue
+    add_action('wp_footer', function() {
+        echo '<script>console.log("📜 enqueue_scripts() called");</script>';
+    });
         
         wp_enqueue_script(
             'el-print-system',
@@ -143,6 +152,8 @@ class EL_Print_System {
             self::VERSION,
             true
         );
+
+        wp_localize_script('el-preview-viewer', 'ajaxurl', admin_url('admin-ajax.php'));
         
         wp_localize_script('el-print-system', 'elPrintSystem', [
             'ajaxUrl' => admin_url('admin-ajax.php'),
@@ -516,7 +527,8 @@ function el_print_system() {
 }
 
 // Initialize on plugins loaded
-add_action('plugins_loaded', 'el_print_system', 20);
+// Initialize immediately since file is loaded after init
+el_print_system();
 
 /**
  * Activation hook - create tables

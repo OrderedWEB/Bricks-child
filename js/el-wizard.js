@@ -25,6 +25,8 @@
     clientData: {},
     cartData: {},
     pdfData: null,
+    isSwitching: false,
+    isSubmitting: false,
 
     // Initialize the wizard
     init: function () {
@@ -86,15 +88,11 @@
         self.startAgain();
       });
 
-      // Tab navigation clicks
-      $(document).on(
-        "click",
-        ".el-tab-nav, .brxe-tab, .tab-title",
-        function () {
-          var tabNumber = $(this).data("tab") || $(this).index() + 1;
-          self.switchToTab(tabNumber);
-        }
-      );
+      // Tab navigation clicks - EXCLUDE Bricks native tabs to prevent conflicts
+      $(document).on("click", ".el-tab-nav", function () {
+        var tabNumber = $(this).data("tab") || $(this).index() + 1;
+        self.switchToTab(tabNumber);
+      });
 
       // Form submission handler (Tab 1)
       $(document).on("submit", "#gform_1", function (e) {
@@ -159,10 +157,28 @@
      * TAB NAVIGATION
      * =================================================================
      */
+
     switchToTab: function (tabNumber) {
+      // Prevent infinite loop with timestamp-based lock
+      var now = Date.now();
+      if (this.lastSwitchTime && now - this.lastSwitchTime < 500) {
+        console.log("⚠️ Tab switch blocked - too soon after last switch");
+        return;
+      }
+      this.lastSwitchTime = now;
+
       console.log("🎯 switchToTab called:", tabNumber);
 
-      // Save current tab position
+      // Map tab numbers to Bricks element IDs
+      var tabIds = {
+        1: "#brxe-vnpepn",
+        2: "#brxe-pxdrgk",
+        3: "#brxe-ubxpqx",
+        4: "#brxe-ihqhkg",
+        5: "#brxe-zmmopw",
+      };
+
+      // Save current tab position via AJAX
       if (typeof el_ajax !== "undefined" && el_ajax.ajax_url) {
         $.ajax({
           url: el_ajax.ajax_url,
@@ -175,26 +191,18 @@
         });
       }
 
-      var $targetTab = $(
-        `.el-tab-${tabNumber}, [data-tab="${tabNumber}"]`
-      ).first();
-
-      // Check if tab exists
-      if (!$targetTab.length) {
-        console.warn("Tab not found:", tabNumber);
-        return;
+      // Click the target tab directly using its ID
+      var targetTabId = tabIds[tabNumber];
+      if (targetTabId && $(targetTabId).length) {
+        // Use native click to trigger Bricks' own tab switching
+        document.querySelector(targetTabId).click();
+      } else {
+        console.error("❌ Tab element not found:", targetTabId);
       }
-
-      // Click the tab
-      $targetTab.trigger("click");
 
       // Update state
       var oldTab = this.currentTab;
       this.currentTab = tabNumber;
-
-      // Update custom navigation
-      $(".el-tab-nav").removeClass("active");
-      $('.el-tab-nav[data-tab="' + tabNumber + '"]').addClass("active");
 
       // Update progress bar
       this.updateProgressBar(tabNumber);
@@ -202,20 +210,16 @@
       // Tab-specific initialization
       this.onTabActivated(tabNumber, oldTab);
 
-      // Scroll to tab content if it exists
-      var $tabContent = $(`.tab-pane:visible`).first();
-      if ($tabContent.length && $tabContent.offset()) {
+      // Scroll to top of content area
+      setTimeout(function () {
         $("html, body").animate(
-          {
-            scrollTop: $tabContent.offset().top - 100,
-          },
-          500
+          { scrollTop: $(".brxe-tabs-nested").offset().top - 50 },
+          300
         );
-      }
+      }, 100);
 
       console.log("✅ Switched to tab:", tabNumber);
     },
-
     updateProgressBar: function (step) {
       var progress = (step / this.maxTabs) * 100;
       $(".el-progress-bar").css("width", progress + "%");
@@ -241,7 +245,7 @@
       }
 
       // Trigger custom event
-      $(document).trigger("el-tab-switched", [tabNumber, fromTab]);
+      $(document).triggerHandler("el-tab-switched", [tabNumber, fromTab]);
     },
 
     /**
@@ -257,12 +261,20 @@
 
     handleClientFormSubmit: function ($form) {
       var self = this;
+
+      // Prevent multiple submissions
+      if (this.isSubmitting) {
+        console.log("⚠️ Form submission already in progress, ignoring");
+        return;
+      }
+      this.isSubmitting = true;
+
       var $submitBtn = $form.find('.gform_button, input[type="submit"]');
 
       // Show loading state
       $submitBtn.val("Saving...").prop("disabled", true);
 
-      // FIXED: Collect individual field values instead of serializing
+      // Collect individual field values
       var formData = {
         action: "el_save_client_ajax",
         nonce: el_ajax.nonce,
@@ -298,9 +310,11 @@
               "success"
             );
 
-            // Auto-switch to Tab 2
+            // Auto-switch to Tab 2 (only once due to isSubmitting flag)
             setTimeout(function () {
               self.switchToTab(2);
+              // Release lock after tab switch completes
+              self.isSubmitting = false;
             }, 500);
           } else {
             self.showNotification(
@@ -308,12 +322,52 @@
               "error"
             );
             $submitBtn.val("Save Client Details").prop("disabled", false);
+            self.isSubmitting = false;
           }
         },
         error: function (xhr, status, error) {
           console.error("❌ AJAX error:", error);
           self.showNotification("Connection error. Please try again.", "error");
           $submitBtn.val("Save Client Details").prop("disabled", false);
+          self.isSubmitting = false;
+        },
+      });
+    },
+
+    handleNoClientStart: function ($button) {
+      var self = this;
+
+      console.log("🔵 handleNoClientStart called");
+
+      if (
+        !confirm(
+          "Start without client details?\n\nYou can add client information later before finalizing."
+        )
+      ) {
+        return;
+      }
+
+      $button.text("Starting...").prop("disabled", true);
+
+      $.ajax({
+        url: el_ajax.ajax_url,
+        type: "POST",
+        data: {
+          action: "el_enable_no_client_mode",
+          nonce: el_ajax.nonce,
+        },
+        success: function (response) {
+          if (response.success) {
+            self.showNotification("Template mode enabled", "info");
+            self.switchToTab(2);
+          } else {
+            self.showNotification("Error: " + response.data.message, "error");
+            $button.text("Skip Client Details").prop("disabled", false);
+          }
+        },
+        error: function () {
+          self.showNotification("Connection error", "error");
+          $button.text("Skip Client Details").prop("disabled", false);
         },
       });
     },

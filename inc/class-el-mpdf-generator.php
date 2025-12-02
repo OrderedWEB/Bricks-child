@@ -47,7 +47,7 @@ class EL_MPDF_Generator {
         'format' => 'A4',
         'orientation' => 'P',
         'margin_top' => 35,
-        'margin_bottom' => 35,
+        'margin_bottom' => 45,
         'margin_left' => 15,
         'margin_right' => 15,
         'margin_header' => 10,
@@ -214,61 +214,140 @@ class EL_MPDF_Generator {
     }
 }
     
-    /**
-     * Set up HTML headers and footers with images and page numbers
-     * 
-     * @param array $assembled_data Assembled engagement letter data
-     */
-    private function setup_headers_footers($assembled_data) {
-        // Extract boilerplate content
-        $letterhead = $assembled_data['boilerplate']['letterhead'] ?? '';
-        $firm_footer = $assembled_data['boilerplate']['firm_footer'] ?? '';
-        $reference = $assembled_data['meta']['reference'] ?? '';
-        
-        // Set HTML header with letterhead
-        if (!empty($letterhead)) {
-            // Process images to ensure they have absolute URLs
-            $letterhead = $this->process_images_for_mpdf($letterhead);
-            
-            $header_html = '<div style="text-align: center; font-family: \'Times New Roman\', Times, serif;">' . 
-                          $letterhead . 
-                          '</div>';
-            $this->mpdf->SetHTMLHeader($header_html);
-        }
-        
-// Footer for pages 1 to second-to-last (with signature line)
-$footer_with_sig = '<table width="100%" style="font-family: \'Times New Roman\', Times, serif; font-size: 9pt; padding-top: 5px;">
-    <tr>
-        <td width="40%" style="text-align: left;">' . esc_html($reference) . ' - ' . date('d/m/Y') . '</td>
-        <td width="20%" style="text-align: center;">Page {PAGENO} of {nbpg}</td>
-        <td width="40%" style="text-align: right;">Client signature ………………………………</td>
-    </tr>
-</table>';
 
-// Footer for last page (no signature line)
-$footer_no_sig = '<table width="100%" style="font-family: \'Times New Roman\', Times, serif; font-size: 9pt; padding-top: 5px;">
-    <tr>
-        <td width="40%" style="text-align: left;">' . esc_html($reference) . ' - ' . date('d/m/Y') . '</td>
-        <td width="20%" style="text-align: center;">Page {PAGENO} of {nbpg}</td>
-        <td width="40%" style="text-align: right;"></td>
-    </tr>
-</table>';
+/**
+ * Process merge tags in HTML content
+ * 
+ * @param string $html HTML content with merge tags
+ * @param array $assembled_data Data containing form_data
+ * @param bool $include_user_data Whether to populate or use dotted lines
+ * @return string Processed HTML
+ */
+private function process_merge_tags($html, $assembled_data, $include_user_data = true) {
+    $form_data = $assembled_data['form_data'] ?? [];
+    
+    // Define the dotted line replacement
+$dotted_line = '............................';
+$short_dotted = '................';
 
-// Add firm footer to both
-if (!empty($firm_footer)) {
-    $firm_footer_html = '<div style="text-align: center; font-size: 8pt; margin-top: 5px;">' . 
-                       $this->process_images_for_mpdf($firm_footer) . 
-                       '</div>';
-    $footer_with_sig .= $firm_footer_html;
-    $footer_no_sig .= $firm_footer_html;
-}
-
-// Set default footer (with signature)
-$this->mpdf->SetHTMLFooter($footer_with_sig);
-
-// Set footer for last page (without signature) - we'll apply this after WriteHTML
-$this->footer_last_page = $footer_no_sig;
+    // Map of merge tags to form data keys
+    $tag_map = [
+        'first_name' => 'first_name',
+        'last_name' => 'last_name',
+        'full_name' => 'full_name',
+        'email' => 'email',
+        'phone' => 'phone',
+        'street_address' => 'street_address',
+        'city' => 'city',
+        'state' => 'state',
+        'zip' => 'zip',
+        'country' => 'country',
+        'cosigner_first_name' => 'cosigner_first_name',
+        'cosigner_last_name' => 'cosigner_last_name',
+        'date' => 'date',
+        'sig' => 'signature',
+    ];
+    
+    // Find all merge tags in the HTML
+    preg_match_all('/\{\{([a-zA-Z_]+)\}\}/', $html, $matches);
+    
+    if (empty($matches[0])) {
+        return $html;
     }
+    
+    foreach ($matches[1] as $index => $tag_name) {
+        $full_tag = $matches[0][$index]; // e.g., {{first_name}}
+        
+        if ($include_user_data) {
+            // Get value from form data
+            $key = $tag_map[$tag_name] ?? $tag_name;
+            $value = $form_data[$key] ?? '';
+            
+            // Special handling for date
+            if ($tag_name === 'date' && empty($value)) {
+                $value = date('d/m/Y');
+            }
+            
+            // Special handling for signature placeholder
+            if ($tag_name === 'sig') {
+                $value = '_______________________';
+            }
+            
+            // If still empty, use short dotted line
+            if (empty($value)) {
+                $value = $short_dotted;
+            }
+            
+            $html = str_replace($full_tag, esc_html($value), $html);
+        } else {
+            // Replace with dotted lines
+            if ($tag_name === 'sig') {
+                $html = str_replace($full_tag, '_______________________', $html);
+            } elseif (in_array($tag_name, ['date'])) {
+                $html = str_replace($full_tag, $short_dotted, $html);
+            } else {
+                $html = str_replace($full_tag, $dotted_line, $html);
+            }
+        }
+    }
+    
+    return $html;
+}
+/**
+ * Set up HTML headers and footers with images and page numbers
+ * Uses named footers to allow switching based on content
+ * 
+ * @param array $assembled_data Assembled engagement letter data
+ */
+private function setup_headers_footers($assembled_data) {
+    // Extract boilerplate content
+    $letterhead = $assembled_data['letterhead'] ?? '';
+    $firm_footer = $assembled_data['firm_footer'] ?? '';
+    $reference = $assembled_data['reference'] ?? '';
+    
+    // Set HTML header with letterhead
+    if (!empty($letterhead)) {
+        $letterhead = $this->process_images_for_mpdf($letterhead);
+        
+        $header_html = '<div style="text-align: center; font-family: \'Times New Roman\', Times, serif;">' . 
+                      $letterhead . 
+                      '</div>';
+        $this->mpdf->SetHTMLHeader($header_html);
+    }
+    
+    // Build firm footer HTML if exists
+    $firm_footer_html = '';
+    if (!empty($firm_footer)) {
+        $firm_footer_html = '<div style="text-align: center; font-size: 8pt; margin-top: 5px;">' . 
+                           $this->process_images_for_mpdf($firm_footer) . 
+                           '</div>';
+    }
+    
+    // Footer WITH signature line (for pages without in-content signatures)
+    $footer_with_sig = '<table width="100%" style="font-family: \'Times New Roman\', Times, serif; font-size: 9pt; padding-top: 15px;">
+        <tr>
+            <td width="40%" style="text-align: left;">' . esc_html($reference) . ' - ' . date('d/m/Y') . '</td>
+            <td width="20%" style="text-align: center;">Page {PAGENO} of {nbpg}</td>
+            <td width="40%" style="text-align: right;">Client signature ………………………………</td>
+        </tr>
+    </table>' . $firm_footer_html;
+    
+    // Footer WITHOUT signature line (for pages with in-content signatures)
+    $footer_no_sig = '<table width="100%" style="font-family: \'Times New Roman\', Times, serif; font-size: 9pt; padding-top: 15px;">
+        <tr>
+            <td width="40%" style="text-align: left;">' . esc_html($reference) . ' - ' . date('d/m/Y') . '</td>
+            <td width="20%" style="text-align: center;">Page {PAGENO} of {nbpg}</td>
+            <td width="40%" style="text-align: right;"></td>
+        </tr>
+    </table>' . $firm_footer_html;
+    
+    // Define named footers for switching
+    $this->mpdf->DefHTMLFooterByName('footer_with_sig', $footer_with_sig);
+    $this->mpdf->DefHTMLFooterByName('footer_no_sig', $footer_no_sig);
+    
+    // Set default footer (with signature)
+    $this->mpdf->SetHTMLFooterByName('footer_with_sig');
+}
     /**
  * Strip black/dark backgrounds from HTML before PDF generation
  *
@@ -404,7 +483,7 @@ private function strip_dark_backgrounds($html) {
      * @param string $signature_format Format for signature line
      * @return array Result with 'success', 'pdf_path' or 'error'
      */
-    public function generate_from_data($assembled_data, $include_page_signatures = false, $signature_format = '') {
+public function generate_from_data($assembled_data, $include_page_signatures = false, $signature_format = '', $include_user_data = true) {
         // Validate input
         if (is_wp_error($assembled_data)) {
             return [
@@ -433,8 +512,9 @@ $paginated = $engine->paginate($blocks);
 $this->setup_headers_footers($assembled_data);
 
 // Generate HTML
-$html = $this->build_full_html($paginated, $assembled_data);
-
+$html = $this->build_full_html($paginated, $assembled_data, $include_user_data);
+$form_data = $assembled_data['form_data'] ?? [];
+$html = $this->process_merge_tags($html, $form_data, !$include_page_signatures);
 // Strip dark backgrounds ← ADD THIS LINE
 $html = $this->strip_dark_backgrounds($html);
 
@@ -463,11 +543,15 @@ if (isset($this->footer_last_page)) {
                 ];
             }
             
+   // Get ACTUAL page count from mPDF (not pagination engine estimate)
+            $actual_page_count = $this->mpdf->page;
+            
             return [
                 'success' => true,
                 'pdf_path' => $pdf_path,
                 'reference' => $reference,
-                'total_pages' => $paginated['total_pages'],
+                'total_pages' => $actual_page_count,
+                'estimated_pages' => $paginated['total_pages'],
                 'stats' => $paginated['stats'],
             ];
             
@@ -594,36 +678,125 @@ if (isset($this->footer_last_page)) {
         }
     }
     
-    /**
-     * Build full HTML document for mPDF
-     * 
-     * @param array $paginated Paginated result from EL_Page_Break_Engine
-     * @param array $assembled_data Original assembled data
-     * @return string Complete HTML document
-     */
-    private function build_full_html($paginated, $assembled_data) {
-        $css = $this->get_document_css();
-        $engine = new EL_Page_Break_Engine($paginated['include_signatures'], $paginated['signature_format']);
-        $body_html = $engine->render_html($paginated);
-        
-        // Process images in body content
-        $body_html = $this->process_images_for_mpdf($body_html);
-        
-        $html = '<!DOCTYPE html>
+/**
+ * Build full HTML document for mPDF
+ * 
+ * @param array $paginated Paginated result from EL_Page_Break_Engine
+ * @param array $assembled_data Original assembled data
+ * @param bool $include_user_data Whether to populate merge tags with data
+ * @return string Complete HTML document
+ */
+private function build_full_html($paginated, $assembled_data, $include_user_data = true) {
+    $css = $this->get_document_css();
+    $engine = new EL_Page_Break_Engine($paginated['include_signatures'], $paginated['signature_format']);
+    $body_html = $engine->render_html($paginated);
+    
+    // Process images in body content
+    $body_html = $this->process_images_for_mpdf($body_html);
+    
+    // Process merge tags (replace {{field}} with values or dotted lines)
+    $body_html = $this->process_merge_tags($body_html, $assembled_data, $include_user_data);
+    
+    // Inject footer switching for pages with signature blocks
+    $body_html = $this->inject_signature_footer_switches($body_html);
+    
+    $html = '<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Engagement Letter - ' . esc_html($assembled_data['meta']['reference']) . '</title>
+    <title>Engagement Letter - ' . esc_html($assembled_data['reference'] ?? '') . '</title>
     <style>' . $css . '</style>
 </head>
 <body>
 ' . $body_html . '
 </body>
 </html>';
-        
+    
+    return $html;
+}
+
+
+/**
+ * Inject mPDF footer switching tags before/after signature block content
+ * 
+ * When signature blocks appear in the content, switch to footer without
+ * signature line to avoid duplicate signature requests. Switch back after.
+ * 
+ * @param string $html The HTML content
+ * @return string HTML with footer switch tags injected
+ */
+private function inject_signature_footer_switches($html) {
+    // Patterns that indicate signature block content starts
+    $signature_start_patterns = [
+        'I/We (print name',
+        'Client signature _',
+        'Client signature:',
+    ];
+    
+    // Patterns that indicate we're still in signature content
+    $signature_content_patterns = [
+        'Date ................ Signature',
+        'In compliance with art. 1341 C.C.',
+        'confirm to have read the terms above',
+        'specifically approve it',
+        'received and retained a full copy',
+    ];
+    
+    // Find earliest signature start
+    $earliest_start = strlen($html);
+    foreach ($signature_start_patterns as $pattern) {
+        $pos = stripos($html, $pattern);
+        if ($pos !== false && $pos < $earliest_start) {
+            $earliest_start = $pos;
+        }
+    }
+    
+    // No signatures found
+    if ($earliest_start >= strlen($html)) {
         return $html;
     }
     
+    // Find where signature content ends - look for "GENERAL TERMS OF BUSINESS"
+    $terms_start = stripos($html, 'GENERAL TERMS OF BUSINESS');
+    
+    // Find the start of the containing div before signature content
+    $search_start = max(0, $earliest_start - 500);
+    $preceding = substr($html, $search_start, $earliest_start - $search_start);
+    $last_div_pos = strrpos($preceding, '<div');
+    
+    if ($last_div_pos !== false) {
+        $insert_start_pos = $search_start + $last_div_pos;
+    } else {
+        $insert_start_pos = $earliest_start;
+    }
+    
+    // Insert switch to no-signature footer
+    $footer_off = '<sethtmlpagefooter name="footer_no_sig" value="on" />';
+    $html = substr($html, 0, $insert_start_pos) . $footer_off . substr($html, $insert_start_pos);
+    
+    // If "GENERAL TERMS OF BUSINESS" exists, switch back to signature footer before it
+    if ($terms_start !== false) {
+        // Adjust position since we inserted content
+        $terms_start += strlen($footer_off);
+        
+        // Find the div containing GENERAL TERMS
+        $search_start = max(0, $terms_start - 500);
+        $preceding = substr($html, $search_start, $terms_start - $search_start);
+        $last_div_pos = strrpos($preceding, '<div');
+        
+        if ($last_div_pos !== false) {
+            $insert_end_pos = $search_start + $last_div_pos;
+        } else {
+            $insert_end_pos = $terms_start;
+        }
+        
+        // Insert switch back to signature footer
+        $footer_on = '<sethtmlpagefooter name="footer_with_sig" value="on" />';
+        $html = substr($html, 0, $insert_end_pos) . $footer_on . substr($html, $insert_end_pos);
+    }
+    
+    return $html;
+}
     /**
      * Get CSS for PDF document
      * 

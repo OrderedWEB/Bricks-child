@@ -1,93 +1,63 @@
 <?php
-error_reporting(E_ALL & ~E_DEPRECATED);
-ini_set('display_errors', 0);
 /**
- * Bricks Child Theme - Engagement Letter System Bootstrap
+ * Bricks Child Theme - Functions.php
  * 
- * This is the MASTER LOADER that replaces your current functions.php.
- * Loads all engagement letter modules in guaranteed correct order.
+ * Master loader for:
+ * - Engagement Letter System
+ * - SLM Systems (DMS, Client Onboarding, Tasks, Messaging, Portal)
  * 
- * CRITICAL LOAD ORDER:
- * 1. Constants (no dependencies)
- * 2. Session (uses constants)
- * 3. Helpers (uses constants, session)
- * 4. Merge Tags (uses helpers)
- * 5. WooCommerce modules (loaded AFTER woocommerce_loaded hook)
- * 6. Feature modules (use all core modules)
- * 7. Tab modules (use all core + feature modules)
- * 
- * @package Engagement_Letter_System
- * @version 2.0.0
+ * @package flavor
+ * @version 2.1.0
  */
 
 if (!defined('ABSPATH')) exit;
 
-// ============================================
-// SYSTEM PATHS
-// ============================================
+// Suppress deprecated warnings in production
+error_reporting(E_ALL & ~E_DEPRECATED);
+ini_set('display_errors', 0);
+
+// =============================================================================
+// SECTION 1: SYSTEM PATHS & CONSTANTS
+// =============================================================================
 
 define('EL_CHILD_PATH', get_stylesheet_directory());
 define('EL_CHILD_URL', get_stylesheet_directory_uri());
 
-// Path to engagement letter modules
 if (!defined('EL_PATH')) {
     define('EL_PATH', EL_CHILD_PATH . '/inc/el/');
 }
 
-// ============================================
-// PHASE 1: CORE MODULES (Load Immediately)
-// These have no WooCommerce dependencies
-// ============================================
+// =============================================================================
+// SECTION 2: ENGAGEMENT LETTER SYSTEM
+// =============================================================================
 
 /**
- * Load core system files
- * 
- * Order matters! Each file may depend on previous files.
+ * Phase 1: Load EL Core Modules (No dependencies)
  */
 function el_load_core_modules() {
     $core_files = [
-        'core/constants.php',       // #1 - Must load FIRST (no dependencies)
-        'core/session.php',         // #2 - Registers init hook priority 1
-        'core/helpers.php',         // #3 - Uses constants, session
-        'core/merge-tags.php',      // #4 - Uses helpers
+        'core/constants.php',
+        'core/session.php',
+        'core/helpers.php',
+        'core/merge-tags.php',
     ];
     
     foreach ($core_files as $file) {
         $filepath = EL_PATH . $file;
-        
         if (file_exists($filepath)) {
             require_once $filepath;
-        } else {
-            error_log('[EL System] CRITICAL: Core file missing - ' . $file);
         }
     }
 }
-
-// Load core modules immediately
 el_load_core_modules();
 
-// ============================================
-// PHASE 2: WOOCOMMERCE MODULES
-// MUST load AFTER WooCommerce is available
-// ============================================
-
 /**
- * Load WooCommerce-dependent modules
- * 
- * Guaranteed to run AFTER WooCommerce initialisation.
+ * Phase 2: Load EL WooCommerce Modules
  */
 function el_load_woocommerce_modules() {
-
-    // Verify WooCommerce is actually loaded
     if (!function_exists('WC') || !class_exists('WooCommerce')) {
-        error_log('❌ [FUNCTIONS.PHP] WooCommerce not available');
-        if (defined('EL_DEBUG_MODE') && EL_DEBUG_MODE) {
-            error_log('[EL System] WooCommerce not available - skipping WC modules');
-        }
         return;
     }
-    
-    error_log('✅ [FUNCTIONS.PHP] WooCommerce available, loading modules...');
     
     $wc_files = [
         'core/woocommerce.php',
@@ -96,329 +66,626 @@ function el_load_woocommerce_modules() {
     
     foreach ($wc_files as $file) {
         $filepath = EL_PATH . $file;
-        
-
-        
         if (file_exists($filepath)) {
-            error_log('📥 [FUNCTIONS.PHP] Loading: ' . $file);
             require_once $filepath;
-            error_log('✅ [FUNCTIONS.PHP] Loaded: ' . $file);
-        } else {
-            error_log('❌ [FUNCTIONS.PHP] WooCommerce module missing - ' . $file);
         }
     }
 }
-
-
 add_action('after_setup_theme', 'el_load_woocommerce_modules', 99);
 
-add_action('after_setup_theme', function() {
-    error_log('🧪 TEST: after_setup_theme hook FIRED!');
-}, 98);
-
-// Hook to woocommerce_loaded (guaranteed timing)
-
-
-// ============================================
-// PHASE 3: FEATURE MODULES (After Init)
-// These use both core and WooCommerce modules
-// ============================================
-
 /**
- * Load feature modules
- * 
- * These implement major system features like PDF generation,
- * resume drafts, payment handling, etc.
+ * Phase 3: Load EL Feature Modules
  */
 function el_load_feature_modules() {
     $feature_files = [
-        'features/resume-draft.php',      // Resume draft banner/restore
-        'features/payment-handler.php',   // Payment/order creation
-        'features/signature-collection.php', // Client signatures
-        'features/encryption.php',        // Data encryption/security
-        'features/start-over.php',          // Startover code
+        'features/resume-draft.php',
+        'features/payment-handler.php',
+        'features/signature-collection.php',
+        'features/encryption.php',
+        'features/start-over.php',
+        '../el-print-system.php',
     ];
     
     foreach ($feature_files as $file) {
         $filepath = EL_PATH . $file;
-        
         if (file_exists($filepath)) {
             require_once $filepath;
         }
     }
 }
-
 add_action('init', 'el_load_feature_modules', 20);
 
-// ============================================
-// PHASE 4: TAB MODULES
-// Implement individual wizard tabs
-// ============================================
-
 /**
- * Load tab modules
- * 
- * Each tab is self-contained with AJAX handlers, shortcodes, etc.
+ * Phase 4: Load EL Tab Modules
  */
 function el_load_tab_modules() {
     $tab_files = [
-        'tabs/tab1-client.php',      // Client details form
-        'tabs/tab1-email-autocomplete.php',// Email autocomplete on GF field
-        'tabs/tab1-user-handler.php',        // Prevents duplicate registration)
-        'tabs/tab2-templates.php',   // Template selection
-        'tabs/tab3-cart.php',        // Cart editor (glass morphism)
-        'tabs/tab4-preview.php',     // PDF preview generation
-        'tabs/tab5-export.php',      // PDF export/download
+        'tabs/tab1-client.php',
+        'tabs/tab1-email-autocomplete.php',
+        'tabs/tab1-user-handler.php',
+        'tabs/tab2-templates.php',
+        'tabs/tab3-cart.php',
+        'tabs/tab4-preview.php',
+        'tabs/tab5-export.php',
     ];
     
     foreach ($tab_files as $file) {
         $filepath = EL_PATH . $file;
-        
         if (file_exists($filepath)) {
             require_once $filepath;
         }
     }
 }
-
 add_action('init', 'el_load_tab_modules', 25);
 
-// ============================================
-// PHASE 5: ADMIN MODULES
-// Custom post type, meta boxes, admin UI
-// ============================================
-
 /**
- * Load admin modules
- * 
- * CPT registration, admin columns, etc.
+ * Phase 5: Load EL Admin Modules
  */
 function el_load_admin_modules() {
     $admin_files = [
-        'admin/cpt-engagement.php',   // Custom post type (REQUIRED)
+        'admin/cpt-engagement.php',
     ];
     
     foreach ($admin_files as $file) {
         $filepath = EL_PATH . $file;
-        
         if (file_exists($filepath)) {
             require_once $filepath;
-        } else {
-            error_log('[EL System] CRITICAL: Admin file missing - ' . $file);
         }
     }
 }
-
 add_action('init', 'el_load_admin_modules', 30);
 
-// ============================================
-// NOTE: AJAX & SHORTCODES DISTRIBUTED
-// ============================================
-// AJAX handlers are distributed across their respective modules:
-// - tab1-client.php: Client search, save client, load client
-// - tab2-templates.php: Add/remove templates, filter templates
-// - tab3-cart.php: Remove items, refresh cart
-// - tab4-preview.php: Generate PDF, load preview
-// - tab5-export.php: Download PDF, complete engagement
-// - grouped-products.php: Store parent, add children
-// - payment-handler.php: Create order, payment status
-// - signature-collection.php: Submit signature, validate token
-// - resume-draft.php: Resume draft, delete draft
-//
-// Shortcodes are in their respective tab/feature modules
-// Print system is in tab5-export.php
-// No separate public/ directory needed
-
-// ============================================
-// SYSTEM DIAGNOSTICS (Debug Mode Only)
-// ============================================
+// =============================================================================
+// SECTION 3: SLM SYSTEMS (DMS, Onboarding, Tasks, Messaging, Portal)
+// =============================================================================
 
 /**
- * Outputs system load status
- * 
- * Only active when EL_DEBUG_MODE = true
+ * SLM System Toggles
  */
-function el_system_diagnostics() {
-    if (!defined('EL_DEBUG_MODE') || !EL_DEBUG_MODE) {
-        return;
+define('SLM_DMS_ENABLED', true);
+define('SLM_CLIENT_ONBOARDING_ENABLED', true);
+define('SLM_TASKS_ENABLED', true);
+define('SLM_MESSAGING_ENABLED', true);
+define('SLM_PORTAL_ENABLED', false); // Enable when portal is installed
+
+define('SLM_DEBUG', false);
+define('SLM_VERSION', '1.0.0');
+
+/**
+ * Load all SLM Systems
+ */
+function slm_load_systems() {
+    $theme_dir = get_stylesheet_directory();
+    $loaded = [];
+    $errors = [];
+    
+    // 1. Document Management System
+    if (SLM_DMS_ENABLED) {
+        $file = $theme_dir . '/inc/dms/slm-dms.php';
+        if (file_exists($file)) {
+            require_once $file;
+            $loaded[] = 'DMS';
+        } else {
+            $errors[] = 'DMS';
+        }
     }
     
-    $diagnostics = [
-        'version' => defined('EL_VERSION') ? EL_VERSION : 'UNKNOWN',
-        'php_version' => PHP_VERSION,
-        'wp_version' => get_bloginfo('version'),
-        'woocommerce' => class_exists('WooCommerce') ? WC()->version : 'Not installed',
-        'session_active' => function_exists('el_session_active') ? (el_session_active() ? 'Yes' : 'No') : 'Module not loaded',
-        'cart_available' => function_exists('el_ensure_cart') ? (el_ensure_cart() ? 'Yes' : 'No') : 'Module not loaded',
-        'core_modules' => [
-            'constants' => defined('EL_VERSION'),
-            'session' => function_exists('el_init_session'),
-            'helpers' => function_exists('el_get_meta'),
-            'merge_tags' => function_exists('el_replace_merge_tags'),
-            'woocommerce' => function_exists('el_save_cart_state'),
-            'grouped_products' => function_exists('el_store_grouped_parent'),
-        ],
-    ];
+    // 2. Client Onboarding
+    if (SLM_CLIENT_ONBOARDING_ENABLED) {
+        $file = $theme_dir . '/inc/client-onboarding/slm-client-onboarding.php';
+        if (file_exists($file)) {
+            require_once $file;
+            $loaded[] = 'Client Onboarding';
+        } else {
+            $errors[] = 'Client Onboarding';
+        }
+    }
     
-    error_log('[EL System] Diagnostics: ' . print_r($diagnostics, true));
+    // 3. Task Management
+    if (SLM_TASKS_ENABLED) {
+        $file = $theme_dir . '/inc/slm-tasks/slm-tasks.php';
+        if (file_exists($file)) {
+            require_once $file;
+            $loaded[] = 'Tasks';
+        } else {
+            $errors[] = 'Tasks';
+        }
+    }
+    
+    // 4. Messaging
+    if (SLM_MESSAGING_ENABLED) {
+        $file = $theme_dir . '/inc/slm-messaging/slm-messaging.php';
+        if (file_exists($file)) {
+            require_once $file;
+            $loaded[] = 'Messaging';
+        } else {
+            $errors[] = 'Messaging';
+        }
+    }
+    
+    // 5. Portal (when ready)
+    if (SLM_PORTAL_ENABLED) {
+        $file = $theme_dir . '/inc/slm-portal/slm-portal.php';
+        if (file_exists($file)) {
+            require_once $file;
+            $loaded[] = 'Portal';
+        }
+    }
+    
+    // Store loaded systems
+    if (!defined('SLM_LOADED_SYSTEMS')) {
+        define('SLM_LOADED_SYSTEMS', implode(', ', $loaded));
+    }
+    
+    // Admin notice for missing files
+    if (!empty($errors) && is_admin()) {
+        add_action('admin_notices', function() use ($errors) {
+            echo '<div class="notice notice-error"><p>';
+            echo '<strong>SLM Systems:</strong> Failed to load: ' . esc_html(implode(', ', $errors));
+            echo '</p></div>';
+        });
+    }
 }
 
-add_action('init', 'el_system_diagnostics', 999);
 
-// ============================================
-// AJAX SECURITY SETUP
-// ============================================
+add_action('after_setup_theme', 'slm_load_systems', 5);
 
 /**
- * Checks if current page is the engagement letter wizard
- * 
- * @return bool True if on wizard page
+ * SLM Dependency Check
  */
-function el_is_wizard_page() {
-    // Method 1: Check by slug (YOUR ACTUAL PAGE SLUG)
-    if (is_page('create-engagement-letter')) {
-        return true;
+function slm_check_dependencies() {
+    $missing = [];
+    
+    if (!class_exists('ACF')) {
+        $missing[] = 'Advanced Custom Fields PRO';
+    }
+    if (!class_exists('WooCommerce')) {
+        $missing[] = 'WooCommerce';
+    }
+    if (!class_exists('GFForms')) {
+        $missing[] = 'Gravity Forms';
     }
     
-    // Fallback: Check by page template
-    if (is_page_template('page-engagement-wizard.php')) {
-        return true;
+    if (!empty($missing) && is_admin()) {
+        add_action('admin_notices', function() use ($missing) {
+            echo '<div class="notice notice-warning"><p>';
+            echo '<strong>SLM Systems:</strong> Missing plugins: ' . esc_html(implode(', ', $missing));
+            echo '</p></div>';
+        });
+    }
+}
+/**
+ * Initialize SLM system classes
+ */
+function slm_init_systems() {
+    // Client Onboarding - uses instance()
+    if (class_exists('SLM_Client_Onboarding') && method_exists('SLM_Client_Onboarding', 'instance')) {
+        SLM_Client_Onboarding::instance();
     }
     
-    // Fallback: Check if page has wizard shortcodes
-    global $post;
-    if (isset($post->post_content)) {
-        $wizard_shortcodes = [
-            '[el_template_selection]',
-            '[el_client_form]',
-            '[el_cart_editor',
-            '[el_pdf_preview',
-        ];
-        
-        foreach ($wizard_shortcodes as $shortcode) {
-            if (strpos($post->post_content, $shortcode) !== false) {
-                return true;
-            }
+    // DMS
+    if (class_exists('SLM_DMS')) {
+        if (method_exists('SLM_DMS', 'get_instance')) {
+            SLM_DMS::get_instance();
+        } elseif (method_exists('SLM_DMS', 'instance')) {
+            SLM_DMS::instance();
         }
+    }
+    
+    // Tasks
+    if (class_exists('SLM_Tasks')) {
+        if (method_exists('SLM_Tasks', 'get_instance')) {
+            SLM_Tasks::get_instance();
+        } elseif (method_exists('SLM_Tasks', 'instance')) {
+            SLM_Tasks::instance();
+        }
+    }
+    
+    // Messaging  
+    if (class_exists('SLM_Messaging')) {
+        if (method_exists('SLM_Messaging', 'get_instance')) {
+            SLM_Messaging::get_instance();
+        } elseif (method_exists('SLM_Messaging', 'instance')) {
+            SLM_Messaging::instance();
+        }
+    }
+}
+add_action('init', 'slm_init_systems', 5);
+add_action('admin_init', 'slm_check_dependencies');
+
+// =============================================================================
+// SECTION 4: SLM HELPER FUNCTIONS
+// =============================================================================
+
+/**
+ * Check if user is a lawyer/staff member
+ */
+function slm_is_lawyer($user_id = null) {
+    if (!$user_id) {
+        $user_id = get_current_user_id();
+    }
+    
+    $user = get_user_by('id', $user_id);
+    if (!$user) {
+        return false;
+    }
+    
+    $lawyer_roles = ['administrator', 'editor', 'slm_lawyer', 'slm_paralegal', 'slm_staff'];
+    return !empty(array_intersect($lawyer_roles, $user->roles));
+}
+
+/**
+ * Check if user is a client
+ */
+function slm_is_client($user_id = null) {
+    if (!$user_id) {
+        $user_id = get_current_user_id();
+    }
+    
+    $user = get_user_by('id', $user_id);
+    if (!$user) {
+        return false;
+    }
+    
+    $client_roles = ['subscriber', 'customer', 'slm_client'];
+    return !empty(array_intersect($client_roles, $user->roles));
+}
+
+/**
+ * Check if user can access a case
+ */
+function slm_user_can_access_case($user_id, $case_id) {
+    if (!$user_id || !$case_id) {
+        return false;
+    }
+    
+    if (user_can($user_id, 'manage_options')) {
+        return true;
+    }
+    
+    // Check client
+    if (get_post_meta($case_id, '_slm_client_id', true) == $user_id) {
+        return true;
+    }
+    
+    // Check additional clients
+    $additional = get_post_meta($case_id, '_slm_additional_clients', true) ?: [];
+    if (in_array($user_id, (array) $additional)) {
+        return true;
+    }
+    
+    // Check case team
+    $team = get_post_meta($case_id, '_slm_case_team', true) ?: [];
+    if (in_array($user_id, (array) $team)) {
+        return true;
+    }
+    
+    // Check lead lawyer
+    if (get_post_meta($case_id, '_slm_lead_lawyer', true) == $user_id) {
+        return true;
     }
     
     return false;
 }
 
 /**
- * Enqueues nonce for AJAX operations
+ * Get user's accessible case IDs
  */
-function el_enqueue_ajax_nonce() {
-    // Only load on engagement letter wizard page
-    if (!el_is_wizard_page()) {
-        return;
+function slm_get_user_cases($user_id = null) {
+    global $wpdb;
+    
+    if (!$user_id) {
+        $user_id = get_current_user_id();
     }
     
-    // Ensure jQuery is loaded first
-    wp_enqueue_script('jquery');
+    if (user_can($user_id, 'manage_options')) {
+        return get_posts([
+            'post_type' => 'slm_case',
+            'posts_per_page' => -1,
+            'fields' => 'ids',
+            'post_status' => 'publish',
+        ]);
+    }
     
-    // Create inline script with nonces (more reliable than wp_localize_script)
-    $ajax_data = [
-        'ajaxUrl' => admin_url('admin-ajax.php'),
-        'nonce' => wp_create_nonce(EL_NONCE),
-        'cartNonce' => wp_create_nonce(EL_CART_NONCE),
-        'refreshNonce' => wp_create_nonce(EL_REFRESH_NONCE),
-    ];
+    $case_ids = [];
     
-    $script = 'var elAjax = ' . json_encode($ajax_data) . ';';
-    wp_add_inline_script('jquery', $script, 'after');
+    // As primary client
+    $case_ids = array_merge($case_ids, $wpdb->get_col($wpdb->prepare(
+        "SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = '_slm_client_id' AND meta_value = %d",
+        $user_id
+    )));
     
-    // Log for debugging
-    if (defined('EL_DEBUG_MODE') && EL_DEBUG_MODE) {
-        error_log('[EL System] AJAX nonces enqueued on page: ' . get_permalink());
+    // As lead lawyer
+    $case_ids = array_merge($case_ids, $wpdb->get_col($wpdb->prepare(
+        "SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = '_slm_lead_lawyer' AND meta_value = %d",
+        $user_id
+    )));
+    
+    // In case team
+    $case_ids = array_merge($case_ids, $wpdb->get_col($wpdb->prepare(
+        "SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = '_slm_case_team' AND meta_value LIKE %s",
+        '%"' . $user_id . '"%'
+    )));
+    
+    // As additional client
+    $case_ids = array_merge($case_ids, $wpdb->get_col($wpdb->prepare(
+        "SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = '_slm_additional_clients' AND meta_value LIKE %s",
+        '%"' . $user_id . '"%'
+    )));
+    
+    return array_unique(array_filter($case_ids));
+}
+
+/**
+ * Get portal URL for current user
+ */
+function slm_get_portal_url() {
+    return slm_is_lawyer() ? home_url('/lawyer-portal/') : home_url('/client-portal/');
+}
+
+/**
+ * Get login URL
+ */
+function slm_get_login_url($context = 'client') {
+    return $context === 'lawyer' 
+        ? home_url('/lawyer-portal/login/') 
+        : home_url('/client-portal/login/');
+}
+
+/**
+ * Debug logging (only when SLM_DEBUG is true)
+ */
+function slm_log($message, $data = null) {
+    if (!SLM_DEBUG) return;
+    
+    $log = 'SLM: ' . $message;
+    if ($data !== null) {
+        $log .= ' | ' . print_r($data, true);
+    }
+    error_log($log);
+}
+
+// =============================================================================
+// SECTION 5: SLM CUSTOM ROLES
+// =============================================================================
+
+/**
+ * Register custom user roles on theme activation
+ */
+function slm_register_roles() {
+    add_role('slm_lawyer', 'Lawyer', [
+        'read' => true,
+        'edit_posts' => true,
+        'upload_files' => true,
+        'edit_slm_cases' => true,
+        'edit_others_slm_cases' => true,
+        'publish_slm_cases' => true,
+        'read_private_slm_cases' => true,
+        'delete_slm_cases' => true,
+        'edit_slm_documents' => true,
+        'edit_others_slm_documents' => true,
+        'manage_slm_tasks' => true,
+    ]);
+    
+    add_role('slm_paralegal', 'Paralegal', [
+        'read' => true,
+        'upload_files' => true,
+        'edit_slm_cases' => true,
+        'edit_slm_documents' => true,
+        'manage_slm_tasks' => true,
+    ]);
+    
+    add_role('slm_staff', 'Staff', [
+        'read' => true,
+        'upload_files' => true,
+        'edit_slm_documents' => true,
+    ]);
+    
+    add_role('slm_client', 'Client', [
+        'read' => true,
+        'upload_files' => true,
+    ]);
+}
+add_action('after_switch_theme', 'slm_register_roles');
+
+// =============================================================================
+// SECTION 6: SLM ADMIN BAR & UI
+// =============================================================================
+
+/**
+ * Add portal links to admin bar
+ */
+function slm_admin_bar_links($admin_bar) {
+    if (!is_user_logged_in()) return;
+    
+    if (slm_is_client()) {
+        $admin_bar->add_node([
+            'id' => 'slm-portal',
+            'title' => '📋 My Portal',
+            'href' => slm_get_portal_url(),
+        ]);
+    }
+    
+    if (slm_is_lawyer()) {
+        $admin_bar->add_node([
+            'id' => 'slm-lawyer-portal',
+            'title' => '⚖️ Lawyer Portal',
+            'href' => home_url('/lawyer-portal/'),
+        ]);
+        
+        $admin_bar->add_node([
+            'id' => 'slm-cases',
+            'title' => 'Cases',
+            'href' => admin_url('edit.php?post_type=slm_case'),
+            'parent' => 'slm-lawyer-portal',
+        ]);
+        
+        $admin_bar->add_node([
+            'id' => 'slm-documents',
+            'title' => 'Documents',
+            'href' => admin_url('edit.php?post_type=slm_document'),
+            'parent' => 'slm-lawyer-portal',
+        ]);
+        
+        $admin_bar->add_node([
+            'id' => 'slm-tasks-admin',
+            'title' => 'Task Lists',
+            'href' => admin_url('edit.php?post_type=slm_task_list'),
+            'parent' => 'slm-lawyer-portal',
+        ]);
     }
 }
-add_action('wp_footer', function() {
+add_action('admin_bar_menu', 'slm_admin_bar_links', 100);
+
+/**
+ * Add SLM-specific body classes
+ */
+function slm_body_classes($classes) {
+    if (is_user_logged_in()) {
+        if (slm_is_lawyer()) {
+            $classes[] = 'slm-user-lawyer';
+        } elseif (slm_is_client()) {
+            $classes[] = 'slm-user-client';
+        }
+    }
+    
+    if (strpos($_SERVER['REQUEST_URI'], '/client-portal') !== false) {
+        $classes[] = 'slm-portal slm-client-portal';
+    } elseif (strpos($_SERVER['REQUEST_URI'], '/lawyer-portal') !== false) {
+        $classes[] = 'slm-portal slm-lawyer-portal';
+    }
+    
+    if (isset($_COOKIE['slm_dark_mode']) && $_COOKIE['slm_dark_mode'] === 'true') {
+        $classes[] = 'slm-dark-mode';
+    }
+    
+    return $classes;
+}
+add_filter('body_class', 'slm_body_classes');
+
+
+
+// =============================================================================
+// SECTION 7: SESSION MANAGEMENT
+// =============================================================================
+
+/**
+ * Start PHP session early if needed
+ */
+function slm_maybe_start_session() {
+    if (session_status() === PHP_SESSION_NONE && !headers_sent()) {
+        session_start();
+    }
+}
+add_action('init', 'slm_maybe_start_session', 1);
+
+// =============================================================================
+// SECTION 8: CRON SCHEDULES
+// =============================================================================
+
+/**
+ * Register custom cron schedules
+ */
+function slm_cron_schedules($schedules) {
+    $schedules['slm_five_minutes'] = [
+        'interval' => 300,
+        'display' => 'Every 5 Minutes',
+    ];
+    
+    $schedules['slm_twice_daily'] = [
+        'interval' => 43200,
+        'display' => 'Twice Daily',
+    ];
+    
+    return $schedules;
+}
+add_filter('cron_schedules', 'slm_cron_schedules');
+
+// =============================================================================
+// SECTION 9: ENGAGEMENT LETTER AJAX & SCRIPTS
+// =============================================================================
+
+/**
+ * Check if current page is engagement letter wizard
+ */
+function el_is_wizard_page() {
+    return is_page(151) || is_page('create-engagement-letter');
+}
+
+/**
+ * Enqueue AJAX nonce for EL wizard
+ */
+function el_enqueue_ajax_nonce() {
+    if (!el_is_wizard_page()) return;
+    
+    wp_enqueue_script('jquery');
+}
+add_action('wp_enqueue_scripts', 'el_enqueue_ajax_nonce', 1);
+
+/**
+ * Output EL AJAX variables in footer
+ */
+function el_output_ajax_vars() {
     if (!is_page('create-engagement-letter')) return;
     ?>
     <script>
     var el_ajax = {
         ajax_url: '<?php echo admin_url('admin-ajax.php'); ?>',
-        nonce: '<?php echo wp_create_nonce(EL_NONCE); ?>'
+        nonce: '<?php echo wp_create_nonce(defined('EL_NONCE') ? EL_NONCE : 'el_nonce'); ?>'
     };
     var elAjax = {
-        ajaxUrl: el_ajax.ajax_url,  // ← Changed to ajaxUrl (camelCase)
+        ajaxUrl: el_ajax.ajax_url,
         nonce: el_ajax.nonce
     };
-    console.log('✅ Nonces loaded:', elAjax);
     </script>
     <?php
-}, 999);
+}
+add_action('wp_footer', 'el_output_ajax_vars', 999);
 
-
-add_action('wp_enqueue_scripts', 'el_enqueue_ajax_nonce', 1);
 /**
- * Enqueue wizard JavaScript
+ * Enqueue EL wizard JavaScript
  */
 function el_enqueue_wizard_js() {
-    if (!el_is_wizard_page()) {
-        return;
-    }
+    if (!el_is_wizard_page()) return;
     
     wp_enqueue_script(
         'el-wizard',
         get_stylesheet_directory_uri() . '/js/el-wizard.js',
         ['jquery'],
-        '1.0.0',
+        '1.0.2',
         true
     );
     
-    // Also localize the el_ajax variable for consistency
     wp_localize_script('el-wizard', 'el_ajax', [
         'ajax_url' => admin_url('admin-ajax.php'),
-        'nonce' => wp_create_nonce(EL_NONCE),
+        'nonce' => wp_create_nonce(defined('EL_NONCE') ? EL_NONCE : 'el_nonce'),
     ]);
 }
-
 add_action('wp_enqueue_scripts', 'el_enqueue_wizard_js', 20);
-// ============================================
-// BACKWARDS COMPATIBILITY
-// Stubs for any old function calls
-// ============================================
 
-/**
- * Ensures old function calls don't break site
- * 
- * Log warning and return safe defaults.
- */
-function el_backwards_compatibility_stub($function_name) {
-    if (defined('EL_DEBUG_MODE') && EL_DEBUG_MODE) {
-        error_log('[EL System] Deprecated function called: ' . $function_name);
-    }
-    return false;
-}
-
-// Add stubs for critical old functions if needed
-// Example:
-// if (!function_exists('old_function_name')) {
-//     function old_function_name() {
-//         return el_backwards_compatibility_stub(__FUNCTION__);
-//     }
-// }
-
-// ============================================
-// HEALTH CHECK ENDPOINT (Optional)
-// ============================================
+// =============================================================================
+// SECTION 10: EL HEALTH CHECK & UTILITIES
+// =============================================================================
 
 /**
  * AJAX: System health check
- * 
- * Returns system status for diagnostics.
  */
 function el_ajax_health_check() {
+    if (!defined('EL_DIAGNOSTIC_NONCE')) {
+        wp_send_json_error(['message' => 'Diagnostic nonce not defined']);
+        return;
+    }
+    
     check_ajax_referer(EL_DIAGNOSTIC_NONCE, 'nonce');
     
     if (!current_user_can('manage_options')) {
         wp_send_json_error(['message' => 'Unauthorised']);
+        return;
     }
     
     $health = [
         'status' => 'healthy',
-        'version' => EL_VERSION,
+        'version' => defined('EL_VERSION') ? EL_VERSION : 'UNKNOWN',
         'modules_loaded' => [
             'constants' => defined('EL_VERSION'),
             'session' => function_exists('el_init_session'),
@@ -432,90 +699,125 @@ function el_ajax_health_check() {
             'acf' => function_exists('get_field'),
             'gravity_forms' => class_exists('GFForms'),
         ],
-        'session' => [
-            'active' => el_session_active(),
-            'has_engagement' => el_has_active_engagement(),
-            'engagement_id' => el_get_current_engagement_id(),
-        ],
-        'cart' => [
-            'available' => el_ensure_cart(),
-            'item_count' => el_ensure_cart() ? el_get_cart_count() : 0,
-        ],
     ];
-    
-    // Check for any critical issues
-    $critical_modules = ['constants', 'session', 'helpers'];
-    foreach ($critical_modules as $module) {
-        if (!$health['modules_loaded'][$module]) {
-            $health['status'] = 'error';
-            $health['error'] = 'Critical module not loaded: ' . $module;
-            break;
-        }
-    }
     
     wp_send_json_success($health);
 }
-
 add_action('wp_ajax_el_health_check', 'el_ajax_health_check');
 
-// ============================================
-// DEACTIVATION CLEANUP (Optional)
-// ============================================
+/**
+ * AJAX: Check EL class existence
+ */
+function el_ajax_check_class_exists() {
+    wp_send_json_success([
+        'EL_Preview_Viewer' => class_exists('EL_Preview_Viewer'),
+        'EL_Print_Data_Assembler' => class_exists('EL_Print_Data_Assembler'),
+        'EL_Content_Blocks' => class_exists('EL_Content_Blocks'),
+        'EL_MPDF_Generator' => class_exists('EL_MPDF_Generator'),
+        'shortcode_exists' => shortcode_exists('el_preview_viewer'),
+    ]);
+}
+add_action('wp_ajax_el_check_class_exists', 'el_ajax_check_class_exists');
 
 /**
  * Cleanup on theme switch
- * 
- * Optional: Remove scheduled events, clear transients, etc.
  */
 function el_cleanup_on_deactivation() {
-    // Clear scheduled events
     $timestamp = wp_next_scheduled('el_daily_cleanup');
     if ($timestamp) {
         wp_unschedule_event($timestamp, 'el_daily_cleanup');
     }
-    
-    // Optionally clear transients (commented out - may want to preserve data)
-    // global $wpdb;
-    // $wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_el_%'");
 }
-
 add_action('switch_theme', 'el_cleanup_on_deactivation');
 
-// ============================================
-// EMERGENCY KILL SWITCH
-// ============================================
+// =============================================================================
+// SECTION 11: EMERGENCY KILL SWITCH
+// =============================================================================
 
 /**
- * Emergency disable
- * 
- * Add this to wp-config.php to disable entire system:
- * define('EL_SYSTEM_DISABLED', true);
+ * Add define('EL_SYSTEM_DISABLED', true); to wp-config.php to disable EL system
  */
 if (defined('EL_SYSTEM_DISABLED') && EL_SYSTEM_DISABLED) {
-    error_log('[EL System] DISABLED via EL_SYSTEM_DISABLED constant');
-    
-    // Prevent all module loading
-    remove_action('woocommerce_loaded', 'el_load_woocommerce_modules', 5);
+    remove_action('after_setup_theme', 'el_load_woocommerce_modules', 99);
     remove_action('init', 'el_load_feature_modules', 20);
     remove_action('init', 'el_load_tab_modules', 25);
     remove_action('init', 'el_load_admin_modules', 30);
-    remove_action('init', 'el_load_public_modules', 35);
+}
+
+// =============================================================================
+// SECTION 12: DIAGNOSTIC OUTPUT (Admin Only)
+// =============================================================================
+
+/**
+ * Output system diagnostic in page source (admins only)
+ */
+function slm_output_diagnostic() {
+    if (!current_user_can('manage_options')) return;
     
-    return; // Stop execution
-}
-
-// ============================================
-// BOOTSTRAP COMPLETE
-// ============================================
-
-if (defined('EL_DEBUG_MODE') && EL_DEBUG_MODE) {
-    error_log('[EL System] Bootstrap complete - version ' . (defined('EL_VERSION') ? EL_VERSION : 'UNKNOWN'));
-}
-
-add_action('wp_footer', function() {
-    if (!is_admin()) {
-        echo '<script>console.log("Is wizard page:", ' . (el_is_wizard_page() ? 'true' : 'false') . ');</script>';
+    $theme_dir = get_stylesheet_directory();
+    
+    // Check files
+    $files = [
+        'DMS' => '/inc/dms/slm-dms.php',
+        'Onboarding' => '/inc/client-onboarding/slm-client-onboarding.php',
+        'Tasks' => '/inc/slm-tasks/slm-tasks.php',
+        'Messaging' => '/inc/slm-messaging/slm-messaging.php',
+    ];
+    
+    // Check classes
+    $classes = [
+        'SLM_Client_Onboarding',
+        'SLM_DMS',
+        'SLM_Tasks',
+        'SLM_Messaging',
+    ];
+    
+    // Check shortcodes
+    global $shortcode_tags;
+    $slm_shortcodes = array_filter(array_keys($shortcode_tags), function($k) {
+        return strpos($k, 'slm_') === 0;
+    });
+    
+    echo "\n<!-- SLM DIAGNOSTIC\n";
+    echo "Files:\n";
+    foreach ($files as $name => $path) {
+        $status = file_exists($theme_dir . $path) ? '✓' : '✗';
+        echo "  {$name}: {$status}\n";
     }
-}, 9999);
+    
+    echo "Classes:\n";
+    foreach ($classes as $class) {
+        $status = class_exists($class) ? '✓' : '✗';
+        echo "  {$class}: {$status}\n";
+    }
+    
+    echo "Shortcodes: " . (empty($slm_shortcodes) ? 'NONE' : implode(', ', $slm_shortcodes)) . "\n";
+    echo "Loaded Systems: " . (defined('SLM_LOADED_SYSTEMS') ? SLM_LOADED_SYSTEMS : 'None') . "\n";
+    echo "-->\n";
+}
+add_action('wp_footer', 'slm_output_diagnostic', 9999);
 
+// =============================================================================
+// END OF FUNCTIONS.PHP
+// =============================================================================
 
+/**
+ * Add rewrite rules for client onboarding URLs
+ */
+function slm_onboarding_rewrite_rules() {
+    add_rewrite_rule(
+        '^client-onboarding/([a-f0-9]{64})/?$',
+        'index.php?pagename=client-onboarding&slm_token=$matches[1]',
+        'top'
+    );
+}
+add_action('init', 'slm_onboarding_rewrite_rules');
+
+/**
+ * Register slm_token as a query var
+ */
+function slm_onboarding_query_vars($vars) {
+    $vars[] = 'slm_token';
+    return $vars;
+}
+add_filter('query_vars', 'slm_onboarding_query_vars');

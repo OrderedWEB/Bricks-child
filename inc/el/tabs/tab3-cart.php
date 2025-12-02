@@ -538,15 +538,6 @@ function el_cart_editor_glass_shortcode() {
     $output .= '</div>';
     
     $output .= '<div style="margin-top: 30px; display: flex; justify-content: space-between;">';
-    $output .= '<button type="button" class="el-back-to-templates" style="
-        background: white;
-        color: ' . EL_COLOR_PRIMARY . ';
-        border: 2px solid ' . EL_COLOR_PRIMARY . ';
-        padding: 12px 24px;
-        border-radius: 8px;
-        font-weight: 500;
-        cursor: pointer;
-    ">← Add More Templates</button>';
     $output .= '</div>';
     
     return $output;

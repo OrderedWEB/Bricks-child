@@ -101,19 +101,42 @@ add_action('gform_after_submission', 'el_process_client_form_submission', 10, 2)
 function el_ajax_save_client() {
     check_ajax_referer(EL_NONCE, 'nonce');
     
-    // Get form data from POST
-    $form_data = [
-        'first_name' => sanitize_text_field($_POST['first_name'] ?? ''),
-        'last_name' => sanitize_text_field($_POST['last_name'] ?? ''),
-        'email' => sanitize_email($_POST['email'] ?? ''),
-        'phone' => sanitize_text_field($_POST['phone'] ?? ''),
-        'street_address' => sanitize_text_field($_POST['street_address'] ?? ''),
-        'city' => sanitize_text_field($_POST['city'] ?? ''),
-        'state' => sanitize_text_field($_POST['state'] ?? ''),
-        'zip' => sanitize_text_field($_POST['zip'] ?? ''),
-        'country' => sanitize_text_field($_POST['country'] ?? ''),
-        'notes' => sanitize_textarea_field($_POST['notes'] ?? ''),
-    ];
+    // Check if data sent directly or inside form_data
+    if (!empty($_POST['first_name']) || !empty($_POST['email'])) {
+        // Direct field submission (from updated JavaScript)
+        $form_data = [
+            'first_name'     => sanitize_text_field($_POST['first_name'] ?? ''),
+            'last_name'      => sanitize_text_field($_POST['last_name'] ?? ''),
+            'email'          => sanitize_email($_POST['email'] ?? ''),
+            'phone'          => sanitize_text_field($_POST['phone'] ?? ''),
+            'street_address' => sanitize_text_field($_POST['street_address'] ?? ''),
+            'city'           => sanitize_text_field($_POST['city'] ?? ''),
+            'state'          => sanitize_text_field($_POST['state'] ?? ''),
+            'zip'            => sanitize_text_field($_POST['zip'] ?? ''),
+            'country'        => sanitize_text_field($_POST['country'] ?? ''),
+            'notes'          => sanitize_textarea_field($_POST['notes'] ?? ''),
+        ];
+    } else {
+        // Serialized form_data submission (from Gravity Forms serialize)
+        $raw_form_data = $_POST['form_data'] ?? [];
+        
+        if (is_string($raw_form_data)) {
+            parse_str($raw_form_data, $raw_form_data);
+        }
+        
+        $form_data = [
+            'first_name'     => sanitize_text_field($raw_form_data['input_1_3'] ?? ''),
+            'last_name'      => sanitize_text_field($raw_form_data['input_1_6'] ?? ''),
+            'email'          => sanitize_email($raw_form_data['input_2'] ?? ''),
+            'phone'          => sanitize_text_field($raw_form_data['input_5'] ?? ''),
+            'street_address' => sanitize_text_field($raw_form_data['input_6_1'] ?? ''),
+            'city'           => sanitize_text_field($raw_form_data['input_6_3'] ?? ''),
+            'state'          => sanitize_text_field($raw_form_data['input_6_4'] ?? ''),
+            'zip'            => sanitize_text_field($raw_form_data['input_6_5'] ?? ''),
+            'country'        => sanitize_text_field($raw_form_data['input_6_6'] ?? ''),
+            'notes'          => sanitize_textarea_field($raw_form_data['input_7'] ?? ''),
+        ];
+    }
     
     // Validate
     $validation = el_validate_client_data($form_data);

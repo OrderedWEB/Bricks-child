@@ -1,0 +1,967 @@
+/**
+ * SLM Client Onboarding - Frontend Styles
+ * 
+ * Styles for the client-facing onboarding flow pages.
+ * 
+ * @package Studio_Legale_Metta
+ * @since 1.0.0
+ */
+
+/* ==========================================================================
+   Variables
+   ========================================================================== */
+
+:root {
+    --slm-primary: #1e3a5f;
+    --slm-primary-light: #2d5a8a;
+    --slm-accent: #2563eb;
+    --slm-accent-hover: #1d4ed8;
+    --slm-accent-light: #dbeafe;
+    --slm-success: #16a34a;
+    --slm-success-light: #dcfce7;
+    --slm-warning: #ca8a04;
+    --slm-warning-light: #fef9c3;
+    --slm-danger: #dc2626;
+    --slm-danger-light: #fee2e2;
+    --slm-gray-50: #f9fafb;
+    --slm-gray-100: #f3f4f6;
+    --slm-gray-200: #e5e7eb;
+    --slm-gray-300: #d1d5db;
+    --slm-gray-400: #9ca3af;
+    --slm-gray-500: #6b7280;
+    --slm-gray-600: #4b5563;
+    --slm-gray-700: #374151;
+    --slm-gray-800: #1f2937;
+    --slm-gray-900: #111827;
+    --slm-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --slm-radius: 8px;
+    --slm-radius-lg: 12px;
+    --slm-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+    --slm-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    --slm-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    --slm-transition: all 0.2s ease;
+}
+
+/* ==========================================================================
+   Base Reset
+   ========================================================================== */
+
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html {
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+body.slm-onboarding-page {
+    font-family: var(--slm-font);
+    background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%);
+    min-height: 100vh;
+    color: var(--slm-gray-800);
+    line-height: 1.6;
+}
+
+/* ==========================================================================
+   Main Container
+   ========================================================================== */
+
+.slm-onboarding-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 40px 20px;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* ==========================================================================
+   Header
+   ========================================================================== */
+
+.slm-onboarding-header {
+    text-align: center;
+    margin-bottom: 32px;
+}
+
+.slm-onboarding-header h1 {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--slm-primary);
+    margin-bottom: 8px;
+}
+
+.slm-onboarding-header .welcome-text {
+    font-size: 16px;
+    color: var(--slm-gray-600);
+}
+
+/* ==========================================================================
+   Progress Steps
+   ========================================================================== */
+
+.slm-progress-steps {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 40px;
+    padding: 0 20px;
+}
+
+.step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+}
+
+.step-number {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--slm-gray-200);
+    color: var(--slm-gray-500);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 16px;
+    margin-bottom: 8px;
+    transition: var(--slm-transition);
+}
+
+.step.active .step-number {
+    background: var(--slm-accent);
+    color: #fff;
+    box-shadow: 0 0 0 4px var(--slm-accent-light);
+}
+
+.step.complete .step-number {
+    background: var(--slm-success);
+    color: #fff;
+}
+
+.step.complete .step-number::after {
+    content: '✓';
+}
+
+.step-label {
+    font-size: 13px;
+    color: var(--slm-gray-500);
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.step.active .step-label {
+    color: var(--slm-accent);
+}
+
+.step.complete .step-label {
+    color: var(--slm-success);
+}
+
+.step-line {
+    width: 80px;
+    height: 3px;
+    background: var(--slm-gray-200);
+    margin: 0 12px;
+    margin-bottom: 28px;
+    border-radius: 2px;
+    transition: var(--slm-transition);
+}
+
+.step-line.complete {
+    background: var(--slm-success);
+}
+
+@media (max-width: 600px) {
+    .step-line {
+        width: 40px;
+    }
+    
+    .step-label {
+        font-size: 11px;
+    }
+    
+    .step-number {
+        width: 36px;
+        height: 36px;
+        font-size: 14px;
+    }
+}
+
+/* ==========================================================================
+   Main Content Area
+   ========================================================================== */
+
+.slm-onboarding-main {
+    flex: 1;
+    background: #fff;
+    border-radius: var(--slm-radius-lg);
+    box-shadow: var(--slm-shadow-lg);
+    padding: 40px;
+    margin-bottom: 32px;
+}
+
+@media (max-width: 600px) {
+    .slm-onboarding-main {
+        padding: 24px 20px;
+    }
+}
+
+.slm-step-content h2 {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--slm-gray-900);
+    margin-bottom: 8px;
+}
+
+.step-description {
+    color: var(--slm-gray-600);
+    margin-bottom: 24px;
+}
+
+/* ==========================================================================
+   Terms Document
+   ========================================================================== */
+
+.slm-terms-document {
+    position: relative;
+    margin-bottom: 32px;
+}
+
+.terms-scroll-container {
+    max-height: 400px;
+    overflow-y: auto;
+    padding: 24px;
+    background: var(--slm-gray-50);
+    border: 1px solid var(--slm-gray-200);
+    border-radius: var(--slm-radius);
+    font-size: 14px;
+    line-height: 1.7;
+}
+
+.terms-scroll-container h3 {
+    font-size: 18px;
+    color: var(--slm-primary);
+    margin-bottom: 16px;
+}
+
+.terms-scroll-container h4 {
+    font-size: 15px;
+    color: var(--slm-gray-800);
+    margin: 24px 0 12px;
+}
+
+.terms-scroll-container p {
+    margin-bottom: 12px;
+    color: var(--slm-gray-700);
+}
+
+.terms-scroll-container ul {
+    margin: 12px 0;
+    padding-left: 24px;
+}
+
+.terms-scroll-container li {
+    margin-bottom: 6px;
+    color: var(--slm-gray-700);
+}
+
+.scroll-indicator {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(transparent, var(--slm-gray-100));
+    padding: 24px;
+    text-align: center;
+    color: var(--slm-gray-500);
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border-radius: 0 0 var(--slm-radius) var(--slm-radius);
+    animation: bounce 2s infinite;
+}
+
+.scroll-indicator.hidden {
+    display: none;
+}
+
+@keyframes bounce {
+    0%, 20%, 50%, 80%, 100% {
+        transform: translateY(0);
+    }
+    40% {
+        transform: translateY(-5px);
+    }
+    60% {
+        transform: translateY(-3px);
+    }
+}
+
+/* ==========================================================================
+   Signature Section
+   ========================================================================== */
+
+.slm-signature-section {
+    border-top: 1px solid var(--slm-gray-200);
+    padding-top: 32px;
+}
+
+.slm-signature-section h3 {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--slm-gray-800);
+    margin-bottom: 16px;
+}
+
+/* Signature Type Toggle */
+.signature-type-toggle {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.sig-type-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 16px;
+    background: var(--slm-gray-100);
+    border: 2px solid var(--slm-gray-200);
+    border-radius: var(--slm-radius);
+    color: var(--slm-gray-600);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: var(--slm-transition);
+}
+
+.sig-type-btn:hover {
+    background: var(--slm-gray-50);
+    border-color: var(--slm-gray-300);
+}
+
+.sig-type-btn.active {
+    background: var(--slm-accent-light);
+    border-color: var(--slm-accent);
+    color: var(--slm-accent);
+}
+
+.sig-type-btn .dashicons {
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+}
+
+/* Signature Pad */
+.signature-pad-container {
+    position: relative;
+    background: #fff;
+    border: 2px dashed var(--slm-gray-300);
+    border-radius: var(--slm-radius);
+    overflow: hidden;
+}
+
+.signature-pad {
+    width: 100%;
+    height: 200px;
+    display: block;
+    cursor: crosshair;
+}
+
+.signature-pad-container:focus-within {
+    border-color: var(--slm-accent);
+    border-style: solid;
+}
+
+.clear-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: var(--slm-gray-100);
+    border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    color: var(--slm-gray-600);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    transition: var(--slm-transition);
+}
+
+.clear-btn:hover {
+    background: var(--slm-gray-200);
+}
+
+.clear-btn .dashicons {
+    font-size: 14px;
+    width: 14px;
+    height: 14px;
+}
+
+.signature-hint {
+    font-size: 12px;
+    color: var(--slm-gray-500);
+    margin-top: 8px;
+    text-align: center;
+}
+
+/* Typed Signature */
+.typed-signature-input {
+    width: 100%;
+    padding: 16px;
+    font-size: 16px;
+    border: 2px solid var(--slm-gray-200);
+    border-radius: var(--slm-radius);
+    transition: var(--slm-transition);
+}
+
+.typed-signature-input:focus {
+    outline: none;
+    border-color: var(--slm-accent);
+    box-shadow: 0 0 0 3px var(--slm-accent-light);
+}
+
+.typed-signature-preview {
+    height: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Brush Script MT', 'Segoe Script', 'Bradley Hand', cursive;
+    font-size: 36px;
+    color: var(--slm-primary);
+    background: var(--slm-gray-50);
+    border: 1px solid var(--slm-gray-200);
+    border-radius: var(--slm-radius);
+    margin-top: 12px;
+}
+
+/* Full Name Input */
+.full-name-input {
+    margin-top: 24px;
+}
+
+.full-name-input label {
+    display: block;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--slm-gray-700);
+    margin-bottom: 8px;
+}
+
+.full-name-input input {
+    width: 100%;
+    padding: 12px 16px;
+    font-size: 16px;
+    border: 2px solid var(--slm-gray-200);
+    border-radius: var(--slm-radius);
+    transition: var(--slm-transition);
+}
+
+.full-name-input input:focus {
+    outline: none;
+    border-color: var(--slm-accent);
+    box-shadow: 0 0 0 3px var(--slm-accent-light);
+}
+
+.required {
+    color: var(--slm-danger);
+}
+
+/* Agreement Checkbox */
+.agreement-checkbox {
+    margin: 24px 0;
+}
+
+.agreement-checkbox label {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    cursor: pointer;
+}
+
+.agreement-checkbox input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    margin-top: 2px;
+    cursor: pointer;
+    accent-color: var(--slm-accent);
+}
+
+.agreement-checkbox span {
+    font-size: 14px;
+    color: var(--slm-gray-700);
+    line-height: 1.5;
+}
+
+/* ==========================================================================
+   Password Form
+   ========================================================================== */
+
+.slm-password-container {
+    max-width: 440px;
+    margin: 0 auto;
+}
+
+.password-form {
+    margin-top: 24px;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--slm-gray-700);
+    margin-bottom: 8px;
+}
+
+.password-input-wrap {
+    position: relative;
+}
+
+.password-input-wrap input {
+    width: 100%;
+    padding: 12px 48px 12px 16px;
+    font-size: 16px;
+    border: 2px solid var(--slm-gray-200);
+    border-radius: var(--slm-radius);
+    transition: var(--slm-transition);
+}
+
+.password-input-wrap input:focus {
+    outline: none;
+    border-color: var(--slm-accent);
+    box-shadow: 0 0 0 3px var(--slm-accent-light);
+}
+
+.toggle-password {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: var(--slm-gray-400);
+    cursor: pointer;
+    padding: 4px;
+}
+
+.toggle-password:hover {
+    color: var(--slm-gray-600);
+}
+
+/* Password Strength */
+.password-strength {
+    margin-top: 8px;
+}
+
+.strength-bar {
+    height: 4px;
+    background: var(--slm-gray-200);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.strength-fill {
+    height: 100%;
+    width: 0;
+    transition: width 0.3s, background 0.3s;
+}
+
+.strength-fill.weak {
+    width: 25%;
+    background: var(--slm-danger);
+}
+
+.strength-fill.fair {
+    width: 50%;
+    background: var(--slm-warning);
+}
+
+.strength-fill.good {
+    width: 75%;
+    background: #84cc16;
+}
+
+.strength-fill.strong {
+    width: 100%;
+    background: var(--slm-success);
+}
+
+.strength-text {
+    font-size: 12px;
+    margin-top: 4px;
+    display: block;
+}
+
+.strength-text.weak { color: var(--slm-danger); }
+.strength-text.fair { color: var(--slm-warning); }
+.strength-text.good { color: #84cc16; }
+.strength-text.strong { color: var(--slm-success); }
+
+/* Password Match */
+.match-indicator {
+    font-size: 13px;
+    margin-top: 6px;
+}
+
+.match-indicator.match {
+    color: var(--slm-success);
+}
+
+.match-indicator.no-match {
+    color: var(--slm-danger);
+}
+
+/* Password Requirements */
+.password-requirements {
+    background: var(--slm-gray-50);
+    border-radius: var(--slm-radius);
+    padding: 16px;
+    margin-bottom: 24px;
+}
+
+.password-requirements p {
+    font-size: 13px;
+    color: var(--slm-gray-700);
+    margin-bottom: 8px;
+}
+
+.password-requirements ul {
+    list-style: none;
+}
+
+.requirement {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--slm-gray-500);
+    padding: 4px 0;
+}
+
+.requirement .dashicons {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+}
+
+.requirement.met {
+    color: var(--slm-success);
+}
+
+.requirement.met .dashicons::before {
+    content: '\f147';
+}
+
+/* ==========================================================================
+   Complete Step
+   ========================================================================== */
+
+.slm-complete-container {
+    text-align: center;
+    padding: 40px 20px;
+}
+
+.success-icon {
+    width: 80px;
+    height: 80px;
+    background: var(--slm-success-light);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 24px;
+}
+
+.success-icon .dashicons {
+    font-size: 48px;
+    width: 48px;
+    height: 48px;
+    color: var(--slm-success);
+}
+
+.success-message {
+    font-size: 16px;
+    color: var(--slm-gray-600);
+    margin-bottom: 32px;
+}
+
+.account-info {
+    background: var(--slm-gray-50);
+    border-radius: var(--slm-radius);
+    padding: 20px;
+    margin-bottom: 32px;
+    display: inline-block;
+    min-width: 300px;
+}
+
+.account-info .info-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+}
+
+.account-info .label {
+    color: var(--slm-gray-500);
+    font-size: 14px;
+}
+
+.account-info .value {
+    color: var(--slm-gray-800);
+    font-weight: 500;
+    font-size: 14px;
+}
+
+.complete-actions {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+}
+
+/* ==========================================================================
+   Buttons
+   ========================================================================== */
+
+.slm-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 14px 28px;
+    font-size: 16px;
+    font-weight: 600;
+    border-radius: var(--slm-radius);
+    cursor: pointer;
+    transition: var(--slm-transition);
+    border: none;
+    text-decoration: none;
+}
+
+.slm-btn.primary {
+    background: var(--slm-accent);
+    color: #fff;
+    width: 100%;
+}
+
+.slm-btn.primary:hover:not(:disabled) {
+    background: var(--slm-accent-hover);
+}
+
+.slm-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.slm-btn .btn-loading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.slm-btn .spinner {
+    width: 18px;
+    height: 18px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ==========================================================================
+   Footer
+   ========================================================================== */
+
+.slm-onboarding-footer {
+    text-align: center;
+    color: var(--slm-gray-500);
+    font-size: 13px;
+}
+
+/* ==========================================================================
+   Error Message
+   ========================================================================== */
+
+.slm-error-message {
+    background: var(--slm-danger-light);
+    border: 1px solid var(--slm-danger);
+    border-radius: var(--slm-radius);
+    padding: 16px 20px;
+    color: var(--slm-danger);
+    font-size: 14px;
+    text-align: center;
+}
+
+/* ==========================================================================
+   Toast Notifications
+   ========================================================================== */
+
+.slm-toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    padding: 16px 24px;
+    background: var(--slm-gray-800);
+    color: #fff;
+    border-radius: var(--slm-radius);
+    box-shadow: var(--slm-shadow-lg);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    animation: slideIn 0.3s ease;
+    max-width: 400px;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateY(20px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.slm-toast.success {
+    background: var(--slm-success);
+}
+
+.slm-toast.error {
+    background: var(--slm-danger);
+}
+
+.slm-toast .dashicons {
+    font-size: 20px;
+    width: 20px;
+    height: 20px;
+}
+
+/* ==========================================================================
+   Loading Overlay
+   ========================================================================== */
+
+.slm-loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.95);
+    z-index: 10001;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.slm-loading-overlay .spinner-large {
+    width: 48px;
+    height: 48px;
+    border: 4px solid var(--slm-gray-200);
+    border-top-color: var(--slm-accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+.slm-loading-overlay p {
+    margin-top: 16px;
+    color: var(--slm-gray-600);
+    font-size: 15px;
+}
+
+/* ==========================================================================
+   Responsive
+   ========================================================================== */
+
+@media (max-width: 480px) {
+    .slm-onboarding-container {
+        padding: 20px 16px;
+    }
+    
+    .slm-onboarding-header h1 {
+        font-size: 22px;
+    }
+    
+    .slm-step-content h2 {
+        font-size: 20px;
+    }
+    
+    .signature-type-toggle {
+        flex-direction: column;
+    }
+    
+    .sig-type-btn {
+        width: 100%;
+    }
+    
+    .typed-signature-preview {
+        font-size: 28px;
+    }
+    
+    .account-info {
+        min-width: auto;
+        width: 100%;
+    }
+    
+    .complete-actions {
+        flex-direction: column;
+    }
+    
+    .complete-actions .slm-btn {
+        width: 100%;
+    }
+}
+
+/* ==========================================================================
+   Print Styles
+   ========================================================================== */
+
+@media print {
+    body.slm-onboarding-page {
+        background: #fff;
+    }
+    
+    .slm-onboarding-container {
+        max-width: none;
+        padding: 0;
+    }
+    
+    .slm-progress-steps,
+    .slm-signature-section,
+    .slm-onboarding-footer,
+    .slm-btn {
+        display: none !important;
+    }
+    
+    .slm-onboarding-main {
+        box-shadow: none;
+        border: 1px solid #ccc;
+    }
+    
+    .terms-scroll-container {
+        max-height: none;
+        overflow: visible;
+    }
+}

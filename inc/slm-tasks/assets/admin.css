@@ -1,0 +1,498 @@
+/**
+ * SLM Tasks Admin Styles
+ */
+
+/* Task List Builder */
+.slm-task-list-builder {
+    margin: -6px -12px -12px;
+}
+
+.slm-task-list-toolbar {
+    padding: 12px 15px;
+    background: #f6f7f7;
+    border-bottom: 1px solid #c3c4c7;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.slm-task-count {
+    color: #666;
+    font-size: 13px;
+}
+
+.slm-task-list-table {
+    border: none;
+    margin: 0;
+}
+
+.slm-task-list-table th {
+    background: #f0f0f1;
+    padding: 10px 12px;
+    font-weight: 600;
+    border-bottom: 1px solid #c3c4c7;
+}
+
+.slm-task-list-table td {
+    padding: 10px 12px;
+    vertical-align: middle;
+    border-bottom: 1px solid #eee;
+}
+
+.slm-task-list-table .slm-col-drag {
+    cursor: move;
+    text-align: center;
+    color: #c3c4c7;
+    width: 30px;
+}
+
+.slm-task-list-table .slm-col-drag:hover {
+    color: #2271b1;
+}
+
+.slm-task-list-table select {
+    width: 100%;
+    max-width: 300px;
+}
+
+.slm-task-list-table input[type="number"] {
+    width: 70px;
+}
+
+.slm-task-row.ui-sortable-helper {
+    background: #fff;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+.slm-task-row.ui-sortable-placeholder {
+    background: #f0f6fc;
+    visibility: visible !important;
+}
+
+.slm-remove-task {
+    color: #b32d2e;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.slm-remove-task:hover {
+    color: #a00;
+}
+
+/* Type Badges */
+.slm-type-badge,
+.slm-role-badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: 500;
+    background: #f0f0f1;
+    color: #50575e;
+}
+
+/* Status Badges */
+.slm-status-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.slm-status-locked {
+    background: #f0f0f1;
+    color: #50575e;
+}
+
+.slm-status-available {
+    background: #e5f5fa;
+    color: #006ba1;
+}
+
+.slm-status-in_progress {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.slm-status-pending_review {
+    background: #fef2f2;
+    color: #b91c1c;
+}
+
+.slm-status-complete {
+    background: #d4edda;
+    color: #155724;
+}
+
+.slm-status-cancelled {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+/* Conditional Rules */
+.slm-conditional-rules {
+    margin-top: 10px;
+    padding: 15px;
+    background: #f9f9f9;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.slm-conditional-row td {
+    padding: 0 12px 12px !important;
+    border-bottom: 2px solid #ddd;
+}
+
+/* Task Instance Admin */
+.slm-task-instance-meta {
+    background: #f6f7f7;
+    padding: 15px;
+    margin: -6px -12px -12px;
+}
+
+.slm-task-meta-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+}
+
+.slm-task-meta-item label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 5px;
+    color: #1e1e1e;
+}
+
+.slm-task-meta-item .value {
+    color: #50575e;
+}
+
+/* Overdue Indicator */
+.slm-overdue {
+    color: #b32d2e;
+    font-weight: 600;
+}
+
+.slm-overdue .dashicons {
+    vertical-align: middle;
+    margin-right: 3px;
+}
+
+/* Case Tasks Panel */
+.slm-case-tasks-panel {
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    margin-top: 15px;
+}
+
+.slm-case-tasks-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 15px;
+    background: #f6f7f7;
+    border-bottom: 1px solid #c3c4c7;
+}
+
+.slm-case-tasks-header h3 {
+    margin: 0;
+    font-size: 14px;
+}
+
+.slm-apply-task-list-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.slm-case-tasks-list {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.slm-case-task-item {
+    display: flex;
+    align-items: center;
+    padding: 10px 15px;
+    border-bottom: 1px solid #eee;
+    gap: 12px;
+}
+
+.slm-case-task-item:last-child {
+    border-bottom: none;
+}
+
+.slm-case-task-item:hover {
+    background: #f9f9f9;
+}
+
+.slm-task-order {
+    width: 30px;
+    text-align: center;
+    color: #999;
+    font-size: 12px;
+}
+
+.slm-task-info {
+    flex: 1;
+}
+
+.slm-task-title {
+    font-weight: 500;
+    color: #1e1e1e;
+}
+
+.slm-task-meta {
+    font-size: 12px;
+    color: #666;
+    margin-top: 3px;
+}
+
+.slm-task-actions {
+    display: flex;
+    gap: 5px;
+}
+
+/* Progress Bar */
+.slm-progress-bar {
+    height: 8px;
+    background: #e0e0e0;
+    border-radius: 4px;
+    overflow: hidden;
+    margin: 10px 0;
+}
+
+.slm-progress-fill {
+    height: 100%;
+    background: #2271b1;
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+
+.slm-progress-text {
+    font-size: 12px;
+    color: #666;
+    text-align: right;
+}
+
+/* Apply Task List Modal */
+.slm-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 100000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.slm-modal-content {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    max-width: 500px;
+    width: 90%;
+    max-height: 80vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.slm-modal-header {
+    padding: 15px 20px;
+    border-bottom: 1px solid #ddd;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.slm-modal-header h2 {
+    margin: 0;
+    font-size: 16px;
+}
+
+.slm-modal-close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #666;
+    font-size: 18px;
+}
+
+.slm-modal-body {
+    padding: 20px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.slm-modal-footer {
+    padding: 15px 20px;
+    border-top: 1px solid #ddd;
+    text-align: right;
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+}
+
+/* Task List Selection */
+.slm-task-list-option {
+    padding: 12px 15px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.slm-task-list-option:hover {
+    border-color: #2271b1;
+    background: #f0f6fc;
+}
+
+.slm-task-list-option.selected {
+    border-color: #2271b1;
+    background: #f0f6fc;
+    box-shadow: 0 0 0 1px #2271b1;
+}
+
+.slm-task-list-option input[type="radio"] {
+    margin-right: 10px;
+}
+
+.slm-task-list-name {
+    font-weight: 600;
+}
+
+.slm-task-list-info {
+    font-size: 12px;
+    color: #666;
+    margin-top: 3px;
+}
+
+/* Audit Log */
+.slm-audit-filters {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    margin: 20px 0;
+    padding: 15px;
+    background: #f6f7f7;
+    border: 1px solid #ddd;
+}
+
+.slm-audit-filters > div {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.slm-audit-filters label {
+    font-weight: 600;
+    font-size: 12px;
+}
+
+.slm-event-badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: 500;
+}
+
+.slm-event-info {
+    background: #e5f5fa;
+    color: #006ba1;
+}
+
+.slm-event-success {
+    background: #d4edda;
+    color: #155724;
+}
+
+.slm-event-warning {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.slm-event-danger {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+/* Holiday Calendar */
+.slm-holidays-header {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+    margin: 20px 0;
+}
+
+.slm-timeline-info {
+    margin-top: 30px;
+    padding: 20px;
+    background: #f6f7f7;
+    border: 1px solid #ddd;
+}
+
+/* Settings Page */
+.slm-settings-content {
+    max-width: 800px;
+    margin-top: 20px;
+}
+
+.slm-settings-content h2 {
+    margin-top: 30px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #ddd;
+}
+
+.slm-tier-example {
+    background: #f6f7f7;
+    padding: 15px;
+    margin-top: 20px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.slm-tier-example h4 {
+    margin-top: 0;
+}
+
+.slm-audit-stats {
+    background: #f6f7f7;
+    padding: 15px;
+    margin-bottom: 20px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+/* Responsive Adjustments */
+@media screen and (max-width: 782px) {
+    .slm-task-list-toolbar {
+        flex-direction: column;
+        gap: 10px;
+        align-items: flex-start;
+    }
+    
+    .slm-case-tasks-header {
+        flex-direction: column;
+        gap: 10px;
+        align-items: flex-start;
+    }
+    
+    .slm-task-meta-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .slm-audit-filters {
+        flex-direction: column;
+        align-items: stretch;
+    }
+}

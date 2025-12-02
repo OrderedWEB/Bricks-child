@@ -1,0 +1,558 @@
+/**
+ * SLM Tasks Frontend Styles
+ * Client Portal Task Interface
+ */
+
+/* Task List Container */
+.slm-tasks-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.slm-tasks-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid #e5e7eb;
+}
+
+.slm-tasks-header h2 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+    color: #1e3a5f;
+}
+
+.slm-tasks-toggle {
+    display: flex;
+    background: #f3f4f6;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.slm-tasks-toggle button {
+    padding: 8px 16px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: 14px;
+    color: #6b7280;
+    transition: all 0.2s;
+}
+
+.slm-tasks-toggle button.active {
+    background: #1e3a5f;
+    color: #fff;
+}
+
+.slm-tasks-toggle button:hover:not(.active) {
+    background: #e5e7eb;
+}
+
+/* Progress Section */
+.slm-tasks-progress {
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 25px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.slm-progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.slm-progress-label {
+    font-weight: 600;
+    color: #374151;
+}
+
+.slm-progress-percent {
+    font-size: 18px;
+    font-weight: 700;
+    color: #1e3a5f;
+}
+
+.slm-progress-bar {
+    height: 12px;
+    background: #e5e7eb;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.slm-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #1e3a5f 0%, #2563eb 100%);
+    border-radius: 6px;
+    transition: width 0.5s ease;
+}
+
+.slm-progress-stats {
+    display: flex;
+    gap: 20px;
+    margin-top: 12px;
+    font-size: 13px;
+    color: #6b7280;
+}
+
+/* Task Groups */
+.slm-task-group {
+    margin-bottom: 30px;
+}
+
+.slm-task-group-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid #e5e7eb;
+    margin-bottom: 15px;
+}
+
+.slm-task-group-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #374151;
+}
+
+.slm-task-group-progress {
+    font-size: 13px;
+    color: #6b7280;
+}
+
+/* Task Cards */
+.slm-task-card {
+    background: #fff;
+    border-radius: 10px;
+    margin-bottom: 12px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    transition: all 0.2s;
+    border-left: 4px solid #e5e7eb;
+}
+
+.slm-task-card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    transform: translateY(-1px);
+}
+
+.slm-task-card.status-available {
+    border-left-color: #3b82f6;
+}
+
+.slm-task-card.status-in_progress {
+    border-left-color: #f59e0b;
+}
+
+.slm-task-card.status-pending_review {
+    border-left-color: #ef4444;
+}
+
+.slm-task-card.status-complete {
+    border-left-color: #10b981;
+    opacity: 0.8;
+}
+
+.slm-task-card.status-locked {
+    border-left-color: #9ca3af;
+    opacity: 0.6;
+}
+
+.slm-task-card.status-cancelled {
+    border-left-color: #6b7280;
+    opacity: 0.5;
+}
+
+.slm-task-card-inner {
+    display: flex;
+    align-items: center;
+    padding: 16px;
+    gap: 16px;
+}
+
+.slm-task-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 20px;
+}
+
+.slm-task-icon.type-checkbox { background: #dbeafe; color: #2563eb; }
+.slm-task-icon.type-upload { background: #fef3c7; color: #d97706; }
+.slm-task-icon.type-form { background: #e0e7ff; color: #4f46e5; }
+.slm-task-icon.type-payment { background: #dcfce7; color: #16a34a; }
+.slm-task-icon.type-signature { background: #fce7f3; color: #db2777; }
+.slm-task-icon.type-external { background: #f3e8ff; color: #9333ea; }
+
+.slm-task-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.slm-task-title {
+    font-weight: 600;
+    color: #1e1e1e;
+    margin-bottom: 4px;
+    line-height: 1.3;
+}
+
+.slm-task-meta {
+    display: flex;
+    gap: 12px;
+    font-size: 13px;
+    color: #6b7280;
+}
+
+.slm-task-meta-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.slm-task-due.overdue {
+    color: #dc2626;
+    font-weight: 600;
+}
+
+.slm-task-status {
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+}
+
+.slm-task-status.locked { background: #f3f4f6; color: #6b7280; }
+.slm-task-status.available { background: #dbeafe; color: #1d4ed8; }
+.slm-task-status.in_progress { background: #fef3c7; color: #b45309; }
+.slm-task-status.pending_review { background: #fee2e2; color: #b91c1c; }
+.slm-task-status.complete { background: #dcfce7; color: #15803d; }
+.slm-task-status.cancelled { background: #f3f4f6; color: #6b7280; }
+
+.slm-task-action {
+    flex-shrink: 0;
+}
+
+.slm-task-action-btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.slm-task-action-btn.primary {
+    background: #1e3a5f;
+    color: #fff;
+}
+
+.slm-task-action-btn.primary:hover {
+    background: #15294a;
+}
+
+.slm-task-action-btn.secondary {
+    background: #f3f4f6;
+    color: #374151;
+}
+
+.slm-task-action-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Task Detail Panel */
+.slm-task-detail {
+    position: fixed;
+    top: 0;
+    right: -450px;
+    width: 450px;
+    height: 100vh;
+    background: #fff;
+    box-shadow: -4px 0 20px rgba(0,0,0,0.15);
+    z-index: 1000;
+    transition: right 0.3s ease;
+    display: flex;
+    flex-direction: column;
+}
+
+.slm-task-detail.open {
+    right: 0;
+}
+
+.slm-task-detail-header {
+    padding: 20px;
+    border-bottom: 1px solid #e5e7eb;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.slm-task-detail-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #1e1e1e;
+    margin: 0;
+    padding-right: 40px;
+}
+
+.slm-task-detail-close {
+    position: absolute;
+    right: 15px;
+    top: 15px;
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: #f3f4f6;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 18px;
+    color: #6b7280;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.slm-task-detail-close:hover {
+    background: #e5e7eb;
+}
+
+.slm-task-detail-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+}
+
+.slm-task-detail-section {
+    margin-bottom: 25px;
+}
+
+.slm-task-detail-section h4 {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #6b7280;
+    margin: 0 0 10px 0;
+}
+
+.slm-task-instructions {
+    line-height: 1.6;
+    color: #374151;
+}
+
+.slm-task-instructions a {
+    color: #2563eb;
+}
+
+.slm-task-detail-footer {
+    padding: 20px;
+    border-top: 1px solid #e5e7eb;
+}
+
+.slm-task-detail-footer .slm-task-action-btn {
+    width: 100%;
+    justify-content: center;
+    padding: 14px;
+}
+
+/* Upload Zone */
+.slm-upload-zone {
+    border: 2px dashed #d1d5db;
+    border-radius: 10px;
+    padding: 30px;
+    text-align: center;
+    background: #fafafa;
+    transition: all 0.2s;
+    cursor: pointer;
+}
+
+.slm-upload-zone:hover,
+.slm-upload-zone.dragover {
+    border-color: #2563eb;
+    background: #eff6ff;
+}
+
+.slm-upload-zone-icon {
+    font-size: 40px;
+    color: #9ca3af;
+    margin-bottom: 12px;
+}
+
+.slm-upload-zone-text {
+    color: #6b7280;
+    margin-bottom: 8px;
+}
+
+.slm-upload-zone-hint {
+    font-size: 12px;
+    color: #9ca3af;
+}
+
+.slm-upload-progress {
+    margin-top: 15px;
+    display: none;
+}
+
+.slm-upload-progress.active {
+    display: block;
+}
+
+/* Forms in Tasks */
+.slm-task-form-embed {
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+/* Payment Widget */
+.slm-payment-widget {
+    background: #f9fafb;
+    border-radius: 10px;
+    padding: 20px;
+}
+
+.slm-payment-amount {
+    font-size: 32px;
+    font-weight: 700;
+    color: #1e3a5f;
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.slm-payment-methods {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.slm-payment-method {
+    padding: 15px;
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    transition: all 0.2s;
+}
+
+.slm-payment-method:hover {
+    border-color: #1e3a5f;
+}
+
+.slm-payment-method.selected {
+    border-color: #1e3a5f;
+    background: #f0f6fc;
+}
+
+/* Empty State */
+.slm-tasks-empty {
+    text-align: center;
+    padding: 60px 20px;
+    color: #6b7280;
+}
+
+.slm-tasks-empty-icon {
+    font-size: 48px;
+    margin-bottom: 15px;
+    opacity: 0.5;
+}
+
+.slm-tasks-empty-title {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: #374151;
+}
+
+/* Loading State */
+.slm-tasks-loading {
+    text-align: center;
+    padding: 40px;
+}
+
+.slm-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid #e5e7eb;
+    border-top-color: #1e3a5f;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 15px;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Overlay */
+.slm-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 999;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s;
+}
+
+.slm-overlay.visible {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .slm-tasks-container {
+        padding: 15px;
+    }
+    
+    .slm-tasks-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 15px;
+    }
+    
+    .slm-task-card-inner {
+        flex-wrap: wrap;
+    }
+    
+    .slm-task-action {
+        width: 100%;
+        margin-top: 10px;
+    }
+    
+    .slm-task-action-btn {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    .slm-task-detail {
+        width: 100%;
+        right: -100%;
+    }
+    
+    .slm-progress-stats {
+        flex-wrap: wrap;
+    }
+}

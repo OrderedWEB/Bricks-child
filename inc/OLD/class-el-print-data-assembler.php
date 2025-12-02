@@ -1,6 +1,6 @@
 <?php
 /**
- * Print PDF Data Assembler
+ * Print PDF Data Assembler  OLD VERSION
  * 
  * Assembles all data needed for engagement letter PDF generation:
  * - Client information from WooCommerce/session
